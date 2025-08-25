@@ -1,0 +1,136 @@
+# VM size: 6 cpus, 600G disk, 12GB RAM
+
+# --process-max=6
+ubuntu@zfs:~$ sudo time pgbackrest restore \
+        --stanza=24dwrz7qpvg2rfqdciypa57cqq \
+        --pg1-path=/tank/dbs/dexoryview_production \
+        --archive-mode=off \
+        --type=standby \
+        --process-max=6 \
+        --log-level-console=detail
+2025-08-22 10:47:17.612 P00   INFO: restore command begin 2.50: --archive-mode=off --exec-id=10213-32175127 --log-level-console=detail --pg1-path=/tank/dbs/dexoryview_production --process-max=6 --repo1-path=/p2jxovzcs5e3ff2cwmjngnt7iq/24dwrz7qpvg2rfqdciypa57cqq --repo1-s3-bucket=k5mmshcmf6okxdb5zxqfsnmsfrdk4gte --repo1-s3-endpoint=s3.dualstack.eu-west-2.amazonaws.com --repo1-s3-key=<redacted> --repo1-s3-key-secret=<redacted> --repo1-s3-region=eu-west-2 --repo1-s3-token=<redacted> --repo1-type=s3 --stanza=24dwrz7qpvg2rfqdciypa57cqq --type=standby
+2025-08-22 10:47:20.124 P00   INFO: repo1: restore backup set 20250822-030002F, recovery will start at 2025-08-22 00:00:02
+2025-08-22 10:47:20.124 P00   INFO: remap data directory to '/tank/dbs/dexoryview_production'
+WARN: file link 'client_ca.pem' will be restored as a file at the same location
+2025-08-22 10:47:20.124 P00 DETAIL: check '/tank/dbs/dexoryview_production' exists
+2025-08-22 10:47:20.125 P00 DETAIL: update ownership for '/tank/dbs/dexoryview_production'
+2025-08-22 10:47:20.125 P00 DETAIL: update mode for '/tank/dbs/dexoryview_production' to 0750
+2025-08-22 10:47:20.125 P00 DETAIL: create path '/tank/dbs/dexoryview_production/base'
+2025-08-22 10:47:20.126 P00 DETAIL: create path '/tank/dbs/dexoryview_production/base/1'
+2025-08-22 10:47:20.126 P00 DETAIL: create path '/tank/dbs/dexoryview_production/base/166704'
+2025-08-22 10:47:20.126 P00 DETAIL: create path '/tank/dbs/dexoryview_production/base/4'
+2025-08-22 10:47:20.126 P00 DETAIL: create path '/tank/dbs/dexoryview_production/base/5'
+2025-08-22 10:47:20.126 P00 DETAIL: create path '/tank/dbs/dexoryview_production/conf.d'
+2025-08-22 10:47:20.126 P00 DETAIL: create path '/tank/dbs/dexoryview_production/global'
+2025-08-22 10:47:20.126 P00 DETAIL: create path '/tank/dbs/dexoryview_production/log'
+2025-08-22 10:47:20.126 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_commit_ts'
+2025-08-22 10:47:20.127 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_dynshmem'
+2025-08-22 10:47:20.127 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_logical'
+2025-08-22 10:47:20.128 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_logical/mappings'
+2025-08-22 10:47:20.128 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_logical/snapshots'
+2025-08-22 10:47:20.128 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_multixact'
+2025-08-22 10:47:20.129 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_multixact/members'
+2025-08-22 10:47:20.129 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_multixact/offsets'
+2025-08-22 10:47:20.129 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_notify'
+2025-08-22 10:47:20.129 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_replslot'
+2025-08-22 10:47:20.130 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_serial'
+2025-08-22 10:47:20.130 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_snapshots'
+2025-08-22 10:47:20.130 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_stat'
+2025-08-22 10:47:20.130 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_stat_tmp'
+2025-08-22 10:47:20.130 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_subtrans'
+2025-08-22 10:47:20.130 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_tblspc'
+2025-08-22 10:47:20.131 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_twophase'
+2025-08-22 10:47:20.131 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_wal'
+2025-08-22 10:47:20.131 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_wal/archive_status'
+2025-08-22 10:47:20.131 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_xact'
+2025-08-22 10:48:25.205 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5203137 (1GB, 0.16%) checksum 8d19ec5530cb6c3eb267bd4803ec5d902dfa29c7
+2025-08-22 10:49:02.801 P03 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5203117 (1GB, 0.31%) checksum 091df91fb392b694c625065d33e3500d7815a539
+2025-08-22 10:49:15.596 P02 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5203117.1 (1GB, 0.47%) checksum cfc718c48e382131cc0d108819506aee2e70aea9
+2025-08-22 10:51:08.126 P05 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.8 (1GB, 0.62%) checksum dbd2cf094db28b3f832fd38b26d75c0a7562f3c1
+2025-08-22 10:51:10.746 P04 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.9 (1GB, 0.78%) checksum 2ecd67617e103c53a287e5ab7657d9d34c359001
+2025-08-22 10:52:19.171 P06 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.7 (1GB, 0.93%) checksum 1cc82bc5407fb353b627588c0c5a85706e746311
+2025-08-22 10:52:41.252 P05 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.38 (1GB, 1.09%) checksum a00866b7dc1339bf4bac4cad77e45dc137ebdca7
+2025-08-22 10:52:54.675 P04 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.37 (1GB, 1.24%) checksum 8cf16ce0e61aafd4b92daaf434f8cce58d83452e
+2025-08-22 10:53:20.475 P02 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.4 (1GB, 1.40%) checksum fbf16b9af9357ed314825cfe57ae4e888c723ce5
+2025-08-22 10:54:04.079 P05 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.35 (1GB, 1.55%) checksum 62952e5b5bfa633a431fc8f6cb2c6a1991cee43e
+2025-08-22 10:54:08.155 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.6 (1GB, 1.71%) checksum 7e7e437992e65fee678358bcebe8a83e6b0c6e85
+2025-08-22 10:54:35.792 P06 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.36 (1GB, 1.86%) checksum d8abb39c84426dfe74afcd9a5bd39a9bdbc11881
+2025-08-22 10:54:54.531 P03 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.5 (1GB, 2.02%) checksum aa581c9c5939c4ecfb40fb41ec5a6e2b5b78c389
+2025-08-22 10:55:12.999 P02 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.33 (1GB, 2.17%) checksum 0a6a1c74fefd8acd6d18b1267b7d3f96b23e403e
+2025-08-22 10:56:16.299 P04 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.34 (1GB, 2.33%) checksum 27d325d39119b70abbdd760b7cf29e6a041c9e98
+2025-08-22 10:57:09.856 P05 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.32 (1GB, 2.48%) checksum 4b9960370e648826aa89e958e88e3b7302c52541
+2025-08-22 10:59:00.534 P06 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.30 (1GB, 2.64%) checksum c4ba09d10ff44dcdd92a7868f90dda80c3bd1841
+2025-08-22 10:59:06.313 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.31 (1GB, 2.79%) checksum eecbd655bd0daa9d884c7fcb0dba3687bc441e64
+2025-08-22 11:00:03.307 P03 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.3 (1GB, 2.95%) checksum f22959d2cc6570f18ab7e0f014df457a4325a155
+^C2025-08-22 11:00:47.159 P00 DETAIL: statistics: {"http.client":{"total":1},"http.request":{"total":2},"http.session":{"total":1},"socket.client":{"total":1},"socket.session":{"total":1},"tls.client":{"total":1},"tls.session":{"total":1}}
+2025-08-22 11:00:47.162 P00   INFO: restore command end: terminated on signal [SIGINT]
+Command exited with non-zero status 63
+0.16user
+0.05system
+13:29.58
+elapsed 0%CPU (0avgtext+0avgdata 20864maxresident)k
+
+
+# --process-max=1
+ubuntu@zfs:~$ sudo time pgbackrest restore         --stanza=24dwrz7qpvg2rfqdciypa57cqq         --pg1-path=/tank/dbs/dexoryview_production         --archive-mode=off         --type=standby        --log-level-console=detail
+2025-08-22 11:01:07.683 P00   INFO: restore command begin 2.50: --archive-mode=off --exec-id=10360-3b84ed90 --log-level-console=detail --pg1-path=/tank/dbs/dexoryview_production --repo1-path=/p2jxovzcs5e3ff2cwmjngnt7iq/24dwrz7qpvg2rfqdciypa57cqq --repo1-s3-bucket=k5mmshcmf6okxdb5zxqfsnmsfrdk4gte --repo1-s3-endpoint=s3.dualstack.eu-west-2.amazonaws.com --repo1-s3-key=<redacted> --repo1-s3-key-secret=<redacted> --repo1-s3-region=eu-west-2 --repo1-s3-token=<redacted> --repo1-type=s3 --stanza=24dwrz7qpvg2rfqdciypa57cqq --type=standby
+2025-08-22 11:01:09.769 P00   INFO: repo1: restore backup set 20250822-030002F, recovery will start at 2025-08-22 00:00:02
+2025-08-22 11:01:09.769 P00   INFO: remap data directory to '/tank/dbs/dexoryview_production'
+WARN: file link 'client_ca.pem' will be restored as a file at the same location
+2025-08-22 11:01:09.769 P00 DETAIL: check '/tank/dbs/dexoryview_production' exists
+2025-08-22 11:01:09.770 P00 DETAIL: update ownership for '/tank/dbs/dexoryview_production'
+2025-08-22 11:01:09.770 P00 DETAIL: update mode for '/tank/dbs/dexoryview_production' to 0750
+2025-08-22 11:01:09.770 P00 DETAIL: create path '/tank/dbs/dexoryview_production/base'
+2025-08-22 11:01:09.772 P00 DETAIL: create path '/tank/dbs/dexoryview_production/base/1'
+2025-08-22 11:01:09.773 P00 DETAIL: create path '/tank/dbs/dexoryview_production/base/166704'
+2025-08-22 11:01:09.773 P00 DETAIL: create path '/tank/dbs/dexoryview_production/base/4'
+2025-08-22 11:01:09.773 P00 DETAIL: create path '/tank/dbs/dexoryview_production/base/5'
+2025-08-22 11:01:09.775 P00 DETAIL: create path '/tank/dbs/dexoryview_production/conf.d'
+2025-08-22 11:01:09.775 P00 DETAIL: create path '/tank/dbs/dexoryview_production/global'
+2025-08-22 11:01:09.776 P00 DETAIL: create path '/tank/dbs/dexoryview_production/log'
+2025-08-22 11:01:09.776 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_commit_ts'
+2025-08-22 11:01:09.776 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_dynshmem'
+2025-08-22 11:01:09.777 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_logical'
+2025-08-22 11:01:09.777 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_logical/mappings'
+2025-08-22 11:01:09.777 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_logical/snapshots'
+2025-08-22 11:01:09.777 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_multixact'
+2025-08-22 11:01:09.778 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_multixact/members'
+2025-08-22 11:01:09.779 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_multixact/offsets'
+2025-08-22 11:01:09.779 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_notify'
+2025-08-22 11:01:09.779 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_replslot'
+2025-08-22 11:01:09.779 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_serial'
+2025-08-22 11:01:09.780 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_snapshots'
+2025-08-22 11:01:09.780 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_stat'
+2025-08-22 11:01:09.781 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_stat_tmp'
+2025-08-22 11:01:09.782 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_subtrans'
+2025-08-22 11:01:09.782 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_tblspc'
+2025-08-22 11:01:09.782 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_twophase'
+2025-08-22 11:01:09.783 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_wal'
+2025-08-22 11:01:09.784 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_wal/archive_status'
+2025-08-22 11:01:09.784 P00 DETAIL: create path '/tank/dbs/dexoryview_production/pg_xact'
+2025-08-22 11:02:00.745 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5203137 (1GB, 0.16%) checksum 8d19ec5530cb6c3eb267bd4803ec5d902dfa29c7
+2025-08-22 11:02:41.049 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5203117.1 (1GB, 0.31%) checksum cfc718c48e382131cc0d108819506aee2e70aea9
+2025-08-22 11:03:22.419 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5203117 (1GB, 0.47%) checksum 091df91fb392b694c625065d33e3500d7815a539
+2025-08-22 11:04:46.056 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.9 (1GB, 0.62%) checksum 2ecd67617e103c53a287e5ab7657d9d34c359001
+2025-08-22 11:06:18.643 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.8 (1GB, 0.78%) checksum dbd2cf094db28b3f832fd38b26d75c0a7562f3c1
+2025-08-22 11:07:54.252 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.7 (1GB, 0.93%) checksum 1cc82bc5407fb353b627588c0c5a85706e746311
+2025-08-22 11:09:41.088 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.6 (1GB, 1.09%) checksum 7e7e437992e65fee678358bcebe8a83e6b0c6e85
+2025-08-22 11:11:14.436 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.5 (1GB, 1.24%) checksum aa581c9c5939c4ecfb40fb41ec5a6e2b5b78c389
+2025-08-22 11:12:43.811 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.4 (1GB, 1.40%) checksum fbf16b9af9357ed314825cfe57ae4e888c723ce5
+2025-08-22 11:13:45.628 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.38 (1GB, 1.55%) checksum a00866b7dc1339bf4bac4cad77e45dc137ebdca7
+2025-08-22 11:14:41.434 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.37 (1GB, 1.71%) checksum 8cf16ce0e61aafd4b92daaf434f8cce58d83452e
+2025-08-22 11:15:25.766 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.36 (1GB, 1.86%) checksum d8abb39c84426dfe74afcd9a5bd39a9bdbc11881
+2025-08-22 11:16:06.716 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.35 (1GB, 2.02%) checksum 62952e5b5bfa633a431fc8f6cb2c6a1991cee43e
+2025-08-22 11:16:54.434 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.34 (1GB, 2.17%) checksum 27d325d39119b70abbdd760b7cf29e6a041c9e98
+2025-08-22 11:17:46.522 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.33 (1GB, 2.33%) checksum 0a6a1c74fefd8acd6d18b1267b7d3f96b23e403e
+2025-08-22 11:18:54.927 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.32 (1GB, 2.48%) checksum 4b9960370e648826aa89e958e88e3b7302c52541
+2025-08-22 11:20:22.579 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.31 (1GB, 2.64%) checksum eecbd655bd0daa9d884c7fcb0dba3687bc441e64
+2025-08-22 11:22:10.739 P01 DETAIL: restore file /tank/dbs/dexoryview_production/base/166704/5114817.30 (1GB, 2.79%) checksum c4ba09d10ff44dcdd92a7868f90dda80c3bd1841
+^C2025-08-22 11:23:50.081 P00 DETAIL: statistics: {"http.client":{"total":1},"http.request":{"total":2},"http.session":{"total":1},"socket.client":{"total":1},"socket.session":{"total":1},"tls.client":{"total":1},"tls.session":{"total":1}}
+2025-08-22 11:23:50.083 P00   INFO: restore command end: terminated on signal [SIGINT]
+Command exited with non-zero status 63
+0.20user
+0.07system
+22:42.48
+elapsed 0%CPU (0avgtext+0avgdata 20736maxresident)k
+544inputs+1557outputs (4major+2855minor)pagefaults 0swaps

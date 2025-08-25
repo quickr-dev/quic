@@ -1,0 +1,47 @@
+ubuntu@ns31792962:/tank$ /usr/lib/postgresql/16/bin/postgres -D /tank/_restore 2>&1 | tee -a /var/log/postgres_restore.log
+tee: /var/log/postgres_restore.log: Permission denied
+postgres: could not access the server configuration file "/tank/_restore/postgresql.conf": Permission denied
+ubuntu@ns31792962:/tank$ sudo -u postgres /usr/lib/postgresql/16/bin/postgres -D /tank/_restore 2>&1 | tee -a /var/log/postgres_restore.log
+tee: /var/log/postgres_restore.log: Permission denied
+[12648][postmaster][][0] LOG:  pgaudit extension initialized
+[12648][postmaster][][0] FATAL:  could not access file "pgpodman": No such file or directory
+[12648][postmaster][][0] LOG:  database system is shut down
+ubuntu@ns31792962:/tank$ sudo vim _restore/postgresql.conf
+ubuntu@ns31792962:/tank$ sudo -u postgres /usr/lib/postgresql/16/bin/postgres -D /tank/_restore 2>&1 | tee -a /var/log/postgres_restore.log
+tee: /var/log/postgres_restore.log: Permission denied
+[12671][postmaster][][0] LOG:  pgaudit extension initialized
+[12671][postmaster][][0] FATAL:  could not access file "anon": No such file or directory
+[12671][postmaster][][0] LOG:  database system is shut down
+ubuntu@ns31792962:/tank$ sudo vim _restore/postgresql.conf
+ubuntu@ns31792962:/tank$ sudo -u postgres /usr/lib/postgresql/16/bin/postgres -D /tank/_restore 2>&1 | tee -a /var/log/postgres_restore.log
+tee: /var/log/postgres_restore.log: Permission denied
+[12684][postmaster][][0] LOG:  pgaudit extension initialized
+[12684][postmaster][][0] FATAL:  could not access file "pg_squeeze": No such file or directory
+[12684][postmaster][][0] LOG:  database system is shut down
+ubuntu@ns31792962:/tank$ sudo vim _restore/postgresql.conf
+ubuntu@ns31792962:/tank$ sudo -u postgres /usr/lib/postgresql/16/bin/postgres -D /tank/_restore 2>&1 | tee -a /var/log/postgres_restore.log
+tee: /var/log/postgres_restore.log: Permission denied
+[12694][postmaster][][0] LOG:  pgaudit extension initialized
+[12694][postmaster][][0] FATAL:  could not access file "pg_parquet": No such file or directory
+[12694][postmaster][][0] LOG:  database system is shut down
+ubuntu@ns31792962:/tank$ sudo vim _restore/postgresql.conf
+ubuntu@ns31792962:/tank$ sudo vim _restore/postgresql.conf
+ubuntu@ns31792962:/tank$ sudo -u postgres /usr/lib/postgresql/16/bin/postgres -D /tank/_restore 2>&1 | tee -a /var/log/postgres_restore.log
+tee: /var/log/postgres_restore.log: Permission denied
+[12720][postmaster][][0] FATAL:  private key file "server.key" has group or world access
+[12720][postmaster][][0] DETAIL:  File must have permissions u=rw (0600) or less if owned by the database user, or permissions u=rw,g=r (0640) or less if owned by root.
+[12720][postmaster][][0] LOG:  database system is shut down
+ubuntu@ns31792962:/tank$ sudo chmod 600 _restore/server.key
+ubuntu@ns31792962:/tank$ sudo -u postgres /usr/lib/postgresql/16/bin/postgres -D /tank/_restore 2>&1 | tee -a /var/log/postgres_restore.log
+tee: /var/log/postgres_restore.log: Permission denied
+[12739][postmaster][][0] FATAL:  could not map anonymous shared memory: Cannot allocate memory
+[12739][postmaster][][0] HINT:  This error usually means that PostgreSQL's request for a shared memory segment exceeded available memory, swap space, or huge pages. To reduce the request size (currently 33271316480 bytes), reduce PostgreSQL's shared memory usage, perhaps by reducing shared_buffers or max_connections.
+[12739][postmaster][][0] LOG:  database system is shut down
+ubuntu@ns31792962:/tank$ sudo ls _restore/conf.d
+10-shared_buffers.conf  20-customer.conf
+ubuntu@ns31792962:/tank$ sudo vim _restore/conf.d/10-shared_buffers.conf
+ubuntu@ns31792962:/tank$ sudo -u postgres /usr/lib/postgresql/16/bin/postgres -D /tank/_restore 2>&1 | tee -a /var/log/postgres_restore.log
+tee: /var/log/postgres_restore.log: Permission denied
+[12760][postmaster][][0] LOG:  redirecting log output to logging collector process
+[12760][postmaster][][0] HINT:  Future log output will appear in directory "log".
+^C

@@ -1,0 +1,836 @@
+# **CPU**: AMD EPYC 4244P - 6c/12t - 3.8 GHz/5.1 GHz
+# **RAM**: 32 GB 5200 MHz
+# **Storage**: 2×960 GB SSD NVMe Soft RAID
+
+ubuntu@quic:~$ time sudo -u postgres pg_dump -p 5432 dexoryview_production | sudo -u postgres psql -p 5433 dexoryview_production
+SET
+SET
+SET
+ERROR:  unrecognized configuration parameter "transaction_timeout"
+SET
+SET
+ set_config
+------------
+
+(1 row)
+
+SET
+SET
+SET
+SET
+CREATE SCHEMA
+ALTER SCHEMA
+CREATE SCHEMA
+ALTER SCHEMA
+CREATE COLLATION
+ERROR:  role "application" does not exist
+CREATE COLLATION
+ERROR:  role "application" does not exist
+CREATE EXTENSION
+COMMENT
+CREATE EXTENSION
+COMMENT
+CREATE EXTENSION
+COMMENT
+CREATE EXTENSION
+COMMENT
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE TYPE
+ERROR:  role "application" does not exist
+CREATE PROCEDURE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE PROCEDURE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE PROCEDURE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE PROCEDURE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE FUNCTION
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE FUNCTION
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE PROCEDURE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE PROCEDURE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE PROCEDURE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE PROCEDURE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE PROCEDURE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE PROCEDURE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE PROCEDURE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE FUNCTION
+ERROR:  role "application" does not exist
+CREATE FUNCTION
+ERROR:  role "application" does not exist
+CREATE FUNCTION
+ERROR:  role "application" does not exist
+CREATE FUNCTION
+ERROR:  role "application" does not exist
+SET
+SET
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE SEQUENCE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+ALTER SEQUENCE
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE SEQUENCE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+ALTER SEQUENCE
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE TABLE
+ERROR:  role "u_kf3v2fu64ram7aowvffxfetpcy" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE SEQUENCE
+ERROR:  role "application" does not exist
+ALTER SEQUENCE
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE SEQUENCE
+ERROR:  role "application" does not exist
+ALTER SEQUENCE
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE SEQUENCE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+CREATE TABLE
+ERROR:  role "application" does not exist
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+COPY 22
+COPY 135069
+COPY 0
+COPY 0
+COPY 64
+COPY 0
+COPY 1263
+COPY 164980
+COPY 301846
+COPY 485
+COPY 27742
+COPY 362287353
+COPY 362293040
+COPY 0
+COPY 1
+COPY 4
+COPY 16285
+COPY 5
+COPY 59
+COPY 71602
+COPY 8653997
+COPY 436531187
+COPY 10997061
+COPY 1112542
+COPY 15
+COPY 11
+COPY 0
+COPY 172884
+COPY 16
+COPY 2
+COPY 87144
+COPY 9895108
+COPY 4319842
+COPY 19186178
+COPY 9
+COPY 387817262
+COPY 0
+COPY 126638
+COPY 6576922
+COPY 3336
+COPY 5260665
+COPY 158
+COPY 268718067
+COPY 35
+COPY 583
+COPY 1
+COPY 273367
+COPY 1
+COPY 20
+COPY 64
+COPY 8328
+COPY 385
+COPY 101
+COPY 0
+COPY 139598
+COPY 0
+COPY 1078
+COPY 1019
+COPY 127048
+COPY 1668
+COPY 1668
+COPY 9831830
+COPY 257497
+COPY 42
+COPY 1137933
+ setval
+--------
+     22
+(1 row)
+
+ setval
+--------
+   1263
+(1 row)
+
+ setval
+--------
+    150
+(1 row)
+
+ setval
+--------
+     58
+(1 row)
+
+ setval
+--------
+  57875
+(1 row)
+
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE STATISTICS
+ERROR:  role "application" does not exist
+CREATE STATISTICS
+ERROR:  role "application" does not exist
+CREATE TRIGGER
+CREATE TRIGGER
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "application" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "application" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "application" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "application" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "dexoryview_production_readonly" does not exist
+ERROR:  role "crunchy_read_only" does not exist
+ERROR:  role "crunchy_write" does not exist
+
+real	225m13.068s
+user	0m0.007s
+sys	0m0.017s

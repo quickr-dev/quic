@@ -1,0 +1,513 @@
+---
+- name: Production deploy
+  hosts: production
+  become: yes
+  gather_facts: yes
+  vars:
+    quicd_binary_path: "../bin/quicd-linux-amd64"
+    quicd_target_path: "/tank/bin/quicd"
+    quicd_grpc_port: 8443
+    restore_data_dir: "/tank/_restore"
+    restore_port: 5433
+    cert_email: "rafael.garcia@dexory.com"
+    cert_path: "/etc/quic/certs"
+    cb_cluster_id: "p2jxovzcs5e3ff2cwmjngnt7iq"
+    pgbackrest_process_max: 6
+    pgbackrest_config_path: "/etc/pgbackrest.conf"
+
+  tasks:
+    # Setup firewall first (needed for Let's Encrypt and services)
+    - name: Open required firewall ports
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "22" # SSH
+        - "80" # HTTP for Let's Encrypt
+        - "{{ quicd_grpc_port }}"
+
+    - name: Ensure UFW is enabled
+      ufw:
+        state: enabled
+
+    # =============================================================
+    # Let's Encrypt setup (only if certificates don't exist)
+    # =============================================================
+    - name: Install required packages
+      apt:
+        name:
+          - zfsutils-linux
+          - postgresql-16
+          - postgresql-contrib
+          - postgresql-16-pgaudit
+          - postgresql-16-cron
+          - postgresql-16-postgis-3
+          - postgresql-16-postgis-3-scripts
+          - pgbackrest
+          - unzip
+          - wget
+        state: present
+        update_cache: yes
+
+    - name: Install CrunchyData Bridge CLI
+      shell: |
+        cd /tmp
+        wget -q https://github.com/CrunchyData/bridge-cli/releases/download/v3.6.6/cb-v3.6.6_linux_amd64.zip
+        unzip -q cb-v3.6.6_linux_amd64.zip
+        mv cb /usr/local/bin/
+        chmod +x /usr/local/bin/cb
+      args:
+        creates: /usr/local/bin/cb
+
+    - name: Stop and disable default PostgreSQL service
+      systemd:
+        name: postgresql
+        state: stopped
+        enabled: false
+
+    - name: Check if TLS certificates exist
+      stat:
+        path: "{{ cert_path }}/server.crt"
+      register: cert_exists
+
+    - name: Let's Encrypt Setup
+      when: not cert_exists.stat.exists
+      block:
+        - name: Force apt cache update (ignore repository errors)
+          shell: apt-get update || true
+          changed_when: false
+
+        - name: Install certbot and nginx
+          apt:
+            name:
+              - certbot
+              - python3-certbot-nginx
+              - nginx
+            state: present
+            update_cache: no
+
+        - name: Verify certbot and nginx are installed
+          command: which certbot nginx
+          changed_when: false
+
+        - name: Create nginx config for Let's Encrypt validation
+          copy:
+            content: |
+              server {
+                  listen 80;
+                  server_name {{ inventory_hostname }};
+
+                  location /.well-known/acme-challenge/ {
+                      root /var/www/certbot;
+                  }
+
+                  location / {
+                      return 301 https://$server_name$request_uri;
+                  }
+              }
+            dest: /etc/nginx/sites-available/letsencrypt
+            mode: "0644"
+
+        - name: Enable nginx site
+          file:
+            src: /etc/nginx/sites-available/letsencrypt
+            dest: /etc/nginx/sites-enabled/letsencrypt
+            state: link
+
+        - name: Remove default nginx site
+          file:
+            path: /etc/nginx/sites-enabled/default
+            state: absent
+
+        - name: Create certbot webroot directory
+          file:
+            path: /var/www/certbot
+            state: directory
+            mode: "0755"
+
+        - name: Start nginx for Let's Encrypt validation
+          systemd:
+            name: nginx
+            state: restarted
+            enabled: yes
+
+        - name: Obtain Let's Encrypt certificate
+          command: |
+            certbot certonly --webroot -w /var/www/certbot -d {{ inventory_hostname }}
+            --non-interactive --agree-tos --email {{ cert_email }}
+          args:
+            creates: /etc/letsencrypt/live/{{ inventory_hostname }}/fullchain.pem
+
+        - name: Create TLS certificate directory for quicd
+          file:
+            path: "{{ cert_path }}"
+            state: directory
+            owner: postgres
+            group: postgres
+            mode: "0755"
+
+        - name: Copy Let's Encrypt certificates for quicd
+          copy:
+            src: "{{ item.src }}"
+            dest: "{{ item.dest }}"
+            owner: postgres
+            group: postgres
+            mode: "{{ item.mode }}"
+            remote_src: yes
+          loop:
+            - {
+                src: "/etc/letsencrypt/live/{{ inventory_hostname }}/fullchain.pem",
+                dest: "{{ cert_path }}/server.crt",
+                mode: "0644",
+              }
+            - {
+                src: "/etc/letsencrypt/live/{{ inventory_hostname }}/privkey.pem",
+                dest: "{{ cert_path }}/server.key",
+                mode: "0600",
+              }
+
+        - name: Setup auto-renewal cron job
+          cron:
+            name: "Let's Encrypt renewal"
+            minute: "0"
+            hour: "3"
+            job: "certbot renew --quiet --post-hook 'cp /etc/letsencrypt/live/{{ inventory_hostname }}/fullchain.pem {{ cert_path }}/server.crt && cp /etc/letsencrypt/live/{{ inventory_hostname }}/privkey.pem {{ cert_path }}/server.key && chown postgres:postgres {{ cert_path }}/* && systemctl restart quicd'"
+
+    # ==============================================
+    # Main setup tasks
+    # ==============================================
+    - name: Create Quic log directory
+      file:
+        path: "/var/log/quic"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: "0755"
+
+    - name: Setup postgres user sudoers permissions for Quic agent
+      copy:
+        content: |
+          # Quic agent permissions for postgres user
+          postgres ALL=(ALL) NOPASSWD: /sbin/zfs, /sbin/zpool, /usr/sbin/ufw, /bin/kill, /usr/bin/pgrep, /bin/rm, /bin/sh, /usr/lib/postgresql/*/bin/*, /bin/systemctl, /usr/bin/tee
+        dest: /etc/sudoers.d/postgres-quic
+        mode: "0440"
+        validate: "visudo -cf %s"
+
+    - name: Set CB_API_KEY environment variable for SSH sessions
+      copy:
+        content: |
+          # CrunchyData Bridge CLI API Key
+          export CB_API_KEY="{{ vault_cb_api_key }}"
+        dest: /etc/profile.d/cb-api-key.sh
+        mode: "0644"
+        owner: root
+        group: root
+
+    - name: Ensure /etc/quic directory exists
+      file:
+        path: /etc/quic
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: "0755"
+
+    # ==============================================
+    # ZFS Encryption Setup
+    # ==============================================
+    - name: Generate ZFS encryption key if not provided
+      shell: openssl rand -hex 32
+      register: generated_zfs_key
+      delegate_to: localhost
+      run_once: true
+      become: no
+      when: vault_zfs_key is not defined
+
+    - name: Deploy ZFS encryption key
+      copy:
+        content: "{{ vault_zfs_key | default(generated_zfs_key.stdout) }}"
+        dest: /etc/quic/zfs-key
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Check if tank pool exists and is encrypted
+      shell: zpool status tank && zfs get encryption tank
+      register: tank_status
+      failed_when: false
+      changed_when: false
+
+    - name: Display tank encryption status
+      debug:
+        msg: "Tank pool status: {{ 'exists' if tank_status.rc == 0 else 'does not exist' }} | Encryption: {{ 'enabled' if 'aes' in tank_status.stdout else 'disabled' }}"
+
+    - name: Set up encrypted tank pool if needed
+      block:
+        - name: Create encrypted tank pool
+          shell: |
+            zpool create tank /dev/nvme0n1p5 /dev/nvme1n1p5 \
+              -O encryption=aes-256-gcm \
+              -O keylocation=file:///etc/quic/zfs-key \
+              -O keyformat=raw
+            zfs set recordsize=8K tank
+            zfs set compression=lz4 tank
+            zfs set atime=off tank
+            zfs set logbias=throughput tank
+          args:
+            creates: /tank
+
+        - name: Create bin directory in tank
+          file:
+            path: /tank/bin
+            state: directory
+            owner: postgres
+            group: postgres
+            mode: "0755"
+
+        - name: Create restore ZFS dataset
+          shell: |
+            zfs create tank/_restore -o mountpoint={{ restore_data_dir }}
+            chown postgres:postgres {{ restore_data_dir }}
+            chmod 700 {{ restore_data_dir }}
+          args:
+            creates: "{{ restore_data_dir }}"
+      when: tank_status.rc != 0 or 'aes' not in tank_status.stdout
+
+    - name: Create ZFS auto-unlock service
+      copy:
+        content: |
+          [Unit]
+          Description=Auto-unlock encrypted ZFS datasets
+          After=zfs-import.target
+          Before=postgresql-restored.service quicd.service
+
+          [Service]
+          Type=oneshot
+          ExecStart=/bin/bash -c 'zfs load-key -a 2>/dev/null || true; zfs mount -a'
+          User=root
+          RemainAfterExit=yes
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/zfs-unlock.service
+        mode: "0644"
+
+    - name: Enable ZFS unlock service
+      systemd:
+        name: zfs-unlock
+        enabled: yes
+        daemon_reload: yes
+
+    # ==============================================
+    # pgbackrest Restore Setup
+    # ==============================================
+    - name: Check if restore is already completed
+      stat:
+        path: "{{ restore_data_dir }}/PG_VERSION"
+      register: restore_completed
+
+    - name: Setup pgbackrest restore service
+      when: not restore_completed.stat.exists
+      block:
+        - name: Create pgbackrest restore script
+          copy:
+            content: |
+              #!/bin/bash
+              set -e
+              export CB_API_KEY="{{ vault_cb_api_key }}"
+
+              echo "Starting pgbackrest restore"
+
+              # Generate pgbackrest config
+              cb backup token --format=pgbackrest {{ cb_cluster_id }} > {{ pgbackrest_config_path }}
+
+              # Get stanza
+              export STANZA="$(head -n1 < {{ pgbackrest_config_path }} | sed -E 's/\[(.*)\]/\1/g')"
+
+              # Ensure target directory exists and is empty
+              mkdir -p {{ restore_data_dir }}
+
+              # Run pgbackrest restore
+              time pgbackrest restore \
+                --stanza=$STANZA \
+                --pg1-path={{ restore_data_dir }} \
+                --archive-mode=off \
+                --type=standby \
+                --process-max={{ pgbackrest_process_max }} \
+                --log-level-console=detail \
+                --delta
+
+              echo "pgbackrest restore completed successfully"
+
+              # Post-restore cleanup
+              echo "Starting post-restore cleanup..."
+
+              # Fix permissions
+              chmod 600 {{ restore_data_dir }}/server.key
+              chown -R postgres:postgres /tank
+
+              # Comment out loaded extensions in postgresql.conf
+              sed -i 's/^shared_preload_libraries/#&/' {{ restore_data_dir }}/postgresql.conf
+
+              # Comment out conf.d include
+              sed -i "s/^include_dir.*conf\.d/#&/" {{ restore_data_dir }}/postgresql.conf
+
+              echo "pgbackrest restore process finished successfully"
+            dest: /usr/local/bin/pgbackrest-restore.sh
+            mode: "0755"
+            owner: root
+            group: root
+
+        - name: Create pgbackrest restore systemd service
+          copy:
+            content: |
+              [Unit]
+              Description=pgbackrest Database Restore
+              Documentation=https://pgbackrest.org/
+              After=network-online.target zfs-unlock.service
+              Wants=network-online.target
+
+              [Service]
+              Type=oneshot
+              User=root
+              WorkingDirectory=/tmp
+              ExecStart=/usr/local/bin/pgbackrest-restore.sh
+              TimeoutStartSec=7200
+              RemainAfterExit=yes
+              StandardOutput=journal
+              StandardError=journal
+
+              [Install]
+              WantedBy=multi-user.target
+            dest: /etc/systemd/system/pgbackrest-restore.service
+            mode: "0644"
+
+        - name: Enable and start pgbackrest restore service
+          systemd:
+            name: pgbackrest-restore
+            enabled: yes
+            state: started
+            daemon_reload: yes
+          register: restore_service
+
+    - name: Deploy auth tokens
+      copy:
+        content: "{{ vault_quic_auth | to_nice_json }}"
+        dest: /etc/quic/auth.json
+        owner: postgres
+        group: postgres
+        mode: "0600"
+
+    - name: Copy quicd binary
+      copy:
+        src: "{{ quicd_binary_path }}"
+        dest: "{{ quicd_target_path }}"
+        owner: postgres
+        group: postgres
+        mode: "0755"
+      notify: restart quicd
+
+    - name: Create PostgreSQL restored systemd service
+      copy:
+        content: |
+          [Unit]
+          Description=PostgreSQL database server (restored instance)
+          Documentation=man:postgres(1)
+          After=network.target zfs-unlock.service pgbackrest-restore.service
+
+          [Service]
+          Type=forking
+          User=postgres
+          ExecStart=/usr/lib/postgresql/16/bin/pg_ctl start -D {{ restore_data_dir }} -o "--port={{ restore_port }}" -w -t 300
+          ExecStop=/usr/lib/postgresql/16/bin/pg_ctl stop -D {{ restore_data_dir }} -m fast
+          ExecReload=/bin/kill -HUP $MAINPID
+          KillMode=mixed
+          KillSignal=SIGINT
+          TimeoutStartSec=1200
+          TimeoutStopSec=300
+          Restart=on-failure
+          RestartSec=10
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/postgresql-restored.service
+        mode: "0644"
+      notify: restart postgresql-restored
+
+    - name: Create Quic gRPC systemd service
+      copy:
+        content: |
+          [Unit]
+          Description=Quic gRPC Server
+          Documentation=https://github.com/quickr-dev/quic
+          After=network.target zfs-unlock.service
+
+          [Service]
+          Type=simple
+          User=postgres
+          WorkingDirectory=/tank
+          ExecStart={{ quicd_target_path }}
+          Restart=always
+          RestartSec=5
+          StandardOutput=journal
+          StandardError=journal
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/quicd.service
+        mode: "0644"
+      notify: restart quicd
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Ensure PostgreSQL restored service is running (non-blocking)
+      systemd:
+        name: postgresql-restored
+        state: started
+        enabled: yes
+      async: 10 # we don't check status
+      poll: 0 # Don't wait - continue immediately
+
+    - name: Ensure gRPC service is running
+      systemd:
+        name: quicd
+        state: started
+        enabled: yes
+      retries: 3
+      delay: 1
+      register: quicd_result
+      until: quicd_result is success
+
+    - name: Check service status
+      command: systemctl status {{ item }}
+      register: service_status
+      loop:
+        - zfs-unlock
+        - pgbackrest-restore
+        - postgresql-restored
+        - quicd
+      changed_when: false
+      failed_when: false
+
+    - name: Display service status
+      debug:
+        msg: "{{ item.stdout_lines[-5:] if item.stdout_lines | length > 5 else item.stdout_lines }}"
+      loop: "{{ service_status.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+  handlers:
+    - name: restart postgresql-restored
+      systemd:
+        name: postgresql-restored
+        state: restarted
+        daemon_reload: yes
+      failed_when: false # Don't fail if pg restart fails (may be in recovery mode and we don't want to wait)
+
+    - name: restart quicd
+      systemd:
+        name: quicd
+        state: restarted
+        daemon_reload: yes

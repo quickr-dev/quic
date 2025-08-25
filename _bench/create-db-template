@@ -1,0 +1,10 @@
+# **CPU**: AMD EPYC 4244P - 6c/12t - 3.8 GHz/5.1 GHz
+# **RAM**: 32 GB 5200 MHz
+# **Storage**: 2×960 GB SSD NVMe Soft RAID
+
+ubuntu@quic:~$ time sudo -u postgres psql -p 5433 -c "CREATE DATABASE clone1 WITH TEMPLATE dexoryview_production STRATEGY = file_copy;"
+CREATE DATABASE
+
+real	23m55.121s
+user	0m0.000s
+sys	0m0.005s

@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package quic;
+
+option go_package = "./proto";
+
+service QuicService {
+  rpc CreateCheckout(CreateCheckoutRequest) returns (CreateCheckoutResponse);
+  rpc DeleteCheckout(DeleteCheckoutRequest) returns (DeleteCheckoutResponse);
+}
+
+message CreateCheckoutRequest {
+  string clone_name = 1;
+}
+
+message CreateCheckoutResponse {
+  string connection_string = 1;
+}
+
+message DeleteCheckoutRequest {
+  string clone_name = 1;
+}
+
+message DeleteCheckoutResponse {
+  bool deleted = 1;
+}
