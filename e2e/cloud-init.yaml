@@ -1,0 +1,79 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+packages:
+  - curl
+  - pgbackrest
+
+write_files:
+  - path: /usr/local/bin/setup-pgbackrest-test-stanza.sh
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      # Setup pgbackrest source database for testing
+      echo "Setting up pgbackrest source database..."
+
+      # Initialize source PostgreSQL cluster
+      sudo -u postgres /usr/lib/postgresql/16/bin/initdb -D /var/lib/postgresql/16/source -k -A peer
+
+      # Create pgbackrest repository and set permissions
+      mkdir -p /var/lib/pgbackrest
+      chmod 750 /var/lib/pgbackrest
+      chown postgres:postgres /var/lib/pgbackrest
+
+      # Create pgbackrest configuration
+      cat > /etc/pgbackrest/pgbackrest.conf << 'EOF'
+      [test-stanza]
+      pg1-path=/var/lib/postgresql/16/source
+
+      [global]
+      repo1-path=/var/lib/pgbackrest
+      process-max=2
+      EOF
+
+      # Configure source database for archiving
+      cat >> /var/lib/postgresql/16/source/postgresql.conf << 'EOF'
+      archive_command = 'pgbackrest --stanza=test-stanza archive-push %p'
+      archive_mode = on
+      wal_level = replica
+      port = 5432
+      EOF
+
+      # Start source database
+      sudo -u postgres pg_ctl start -D /var/lib/postgresql/16/source -l /var/log/postgresql/source.log
+
+      # Wait for database to be ready
+      sudo -u postgres pg_isready -p 5432
+
+      # Create test database and sample data
+      sudo -u postgres psql -p 5432 -c "CREATE DATABASE testdb;"
+      sudo -u postgres psql -p 5432 -d testdb -c "
+        CREATE TABLE users (name VARCHAR(100) NOT NULL);
+        INSERT INTO users (name) VALUES ('Alice'), ('Bob'), ('Charlie');
+      "
+
+      # Create pgbackrest stanza and initial backup
+      sudo -u postgres pgbackrest --stanza=test-stanza stanza-create
+      sudo -u postgres pgbackrest --stanza=test-stanza backup
+
+      echo "pgbackrest setup complete"
+
+runcmd:
+  # Create loop devices for ZFS testing
+  - truncate -s 5G /zfs-disk1
+  - truncate -s 5G /zfs-disk2
+  - losetup /dev/loop0 /zfs-disk1
+  - losetup /dev/loop1 /zfs-disk2
+
+  # Run base setup with loop devices
+  - curl -fsSL https://raw.githubusercontent.com/quickr-dev/quic/main/scripts/base-setup.sh | bash -s -- --devices 'loop0,loop1' --pg-version '16'
+
+  # Setup pgbackrest test stanza
+  - /usr/local/bin/setup-pgbackrest-test-stanza.sh
+
+  #
+
+final_message: "Done!"

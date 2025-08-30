@@ -1,34 +1,35 @@
 vm-recreate:
-	time multipass delete quic-e2e-base --purge || true
-	time multipass launch --name quic-e2e-base --cpus 4 --disk 40GB --memory 8GB --cloud-init scripts/e2e-cloud-init.yaml --verbose
-	time multipass stop quic-e2e-base
-	time multipass snapshot quic-e2e-base --name quic-e2e-ready
-	time multipass start quic-e2e-base
+	time multipass delete quic-e2e --purge || true
+	time multipass launch --name quic-e2e --cpus 4 --disk 20GB --memory 8GB --cloud-init e2e/cloud-init.yaml --verbose
+	multipass mount . quic-e2e:/home/ubuntu/quic
+	time multipass stop quic-e2e
+	time multipass snapshot quic-e2e --name base
+	time multipass start quic-e2e
 
 vm-restore:
-	time multipass stop quic-e2e-base || true
-	time multipass restore --destructive quic-e2e-base.quic-e2e-ready
-	time multipass start quic-e2e-base
+	time multipass stop quic-e2e || true
+	time multipass restore --destructive quic-e2e.base
+	time multipass start quic-e2e
 
 vm-rebuild-agent:
 	GOOS=linux GOARCH=arm64 go build -o bin/quicd-linux ./cmd/quicd
-	multipass exec quic-e2e-base -- sudo systemctl stop quicd || true
-	multipass transfer bin/quicd-linux quic-e2e-base:/tmp/quicd
-	multipass exec quic-e2e-base -- sudo mv /tmp/quicd /tank/bin/quicd
-	multipass exec quic-e2e-base -- sudo chown postgres:postgres /tank/bin/quicd
-	multipass exec quic-e2e-base -- sudo chmod +x /tank/bin/quicd
-	multipass exec quic-e2e-base -- sudo systemctl enable quicd.service
-	multipass exec quic-e2e-base -- sudo systemctl start quicd.service
-	sleep 0.5
+	multipass transfer bin/quicd-linux quic-e2e:/tmp/quicd
+	multipass exec quic-e2e -- sudo systemctl stop quicd || true
+	multipass exec quic-e2e -- sudo mv /tmp/quicd /opt/quic/bin/quicd
+	multipass exec quic-e2e -- sudo chown postgres:postgres /opt/quic/bin/quicd
+	multipass exec quic-e2e -- sudo chmod +x /opt/quic/bin/quicd
+	multipass exec quic-e2e -- sudo systemctl enable quicd.service
+	multipass exec quic-e2e -- sudo systemctl start quicd.service
 
 e2e-agent: vm-rebuild-agent
-	go test ./e2e/agent -v -run TestCheckoutFlow -count=1
+	multipass exec quic-e2e -- sudo --login --user=postgres bash -c "cd /home/ubuntu/quic && go test ./e2e/agent -v -run TestQuicdInit -count=1"
+	$(MAKE) vm-restore
 
 e2e-cli: vm-rebuild-agent
 	go build -o bin/quic ./cmd/quic
 	go test ./e2e/cli -v -count=1
 
-e2e: e2e-agent e2e-cli
+e2e: e2e-agent e2e-cli e2e-init
 
 .PHONY: proto
 proto:
@@ -61,13 +62,10 @@ release-tag:
 
 release:
 	@if [ -z "$(VERSION)" ]; then echo "Usage: make release VERSION=v1.0.0"; exit 1; fi
-	@echo "🚀 Starting release process for $(VERSION)"
+	@echo "Releasing $(VERSION)"
 	make release-build VERSION=$(VERSION)
 	make release-tag VERSION=$(VERSION)
-	@echo ""
-	@echo "✅ Release $(VERSION) initiated!"
-	@echo "📦 Check GitHub Actions: https://github.com/quickr-dev/quic/actions"
-	@echo "📋 View releases: https://github.com/quickr-dev/quic/releases"
+	@echo "GitHub Action: https://github.com/quickr-dev/quic/actions"
 
 deploy:
 	GOOS=linux GOARCH=amd64 go build -o bin/quicd-linux-amd64 ./cmd/quicd
@@ -81,4 +79,4 @@ replace-quic-cli:
 	echo "Building quic with version: $$current_version"; \
 	GOOS=darwin GOARCH=arm64 go build -ldflags="-X 'github.com/quickr-dev/quic/internal/version.Version=$$current_version'" -o bin/quic-darwin-arm64 ./cmd/quic; \
 	cp bin/quic-darwin-arm64 ~/.local/bin/quic; \
-	echo "✅ Replaced ~/.local/bin/quic with version $$current_version"
+	echo "Replaced ~/.local/bin/quic with version $$current_version"
