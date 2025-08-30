@@ -35,52 +35,32 @@ jobs:
 
       - name: Build releases
         run: |
-          # Build for macOS
+          # Build quic
           GOOS=darwin GOARCH=amd64 go build -ldflags="-X 'github.com/quickr-dev/quic/internal/version.Version=${{ steps.version.outputs.version }}'" -o quic-darwin-amd64 ./cmd/quic
           GOOS=darwin GOARCH=arm64 go build -ldflags="-X 'github.com/quickr-dev/quic/internal/version.Version=${{ steps.version.outputs.version }}'" -o quic-darwin-arm64 ./cmd/quic
-
-          # Build for Linux
           GOOS=linux GOARCH=amd64 go build -ldflags="-X 'github.com/quickr-dev/quic/internal/version.Version=${{ steps.version.outputs.version }}'" -o quic-linux-amd64 ./cmd/quic
+
+          # Build quicd
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-X 'github.com/quickr-dev/quic/internal/version.Version=${{ steps.version.outputs.version }}'" -o quicd-darwin-amd64 ./cmd/quicd
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-X 'github.com/quickr-dev/quic/internal/version.Version=${{ steps.version.outputs.version }}'" -o quicd-darwin-arm64 ./cmd/quicd
+          GOOS=linux GOARCH=amd64 go build -ldflags="-X 'github.com/quickr-dev/quic/internal/version.Version=${{ steps.version.outputs.version }}'" -o quicd-linux-amd64 ./cmd/quicd
 
       - name: Generate checksums
         run: |
           shasum -a 256 quic-* > checksums.txt
           cat checksums.txt
 
-      # - name: Create GitHub Release
-      #   uses: softprops/action-gh-release@v1
-      #   with:
-      #     files: |
-      #       quic-darwin-amd64
-      #       quic-darwin-arm64
-      #       quic-linux-amd64
-      #       checksums.txt
-      #     generate_release_notes: true
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Update quic-cli repo with latest binaries
-        run: |
-          # Clone the public quic-cli repo
-          git clone https://github.com/quickr-dev/quic-cli.git
-          cd quic-cli
-
-          # Create bin directory if it doesn't exist
-          mkdir -p bin
-
-          # Replace binaries with latest versions (no version folders)
-          cp ../quic-darwin-amd64 bin/
-          cp ../quic-darwin-arm64 bin/
-          cp ../quic-linux-amd64 bin/
-
-          # Update VERSION file
-          echo "${{ steps.version.outputs.version }}" > VERSION
-
-          # Commit and push
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          git commit -m "Update binaries to ${{ steps.version.outputs.version }}"
-          git push https://${{ secrets.HOMEBREW_TAP_TOKEN }}@github.com/quickr-dev/quic-cli.git
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            quic-darwin-amd64
+            quic-darwin-arm64
+            quic-linux-amd64
+            quicd-darwin-amd64
+            quicd-darwin-arm64
+            quicd-linux-amd64
+            checksums.txt
+          generate_release_notes: true
         env:
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
