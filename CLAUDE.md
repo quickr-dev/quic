@@ -4,8 +4,7 @@
 - `./Makefile`: tasks to build, deploy, test
 
 ## Key Technical Context
-- Database branching system using ZFS snapshots and PostgreSQL coordination
+- Database branching system using ZFS snapshot/clone and PostgreSQL coordination
 - Go-based CLI and gRPC agent server
 - systemd service management for PostgreSQL clones
-- Ansible for setting up the environment
 - Token-based authentication
