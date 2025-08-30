@@ -4,17 +4,15 @@
   become: yes
   gather_facts: yes
   vars:
-    # Required user-provided vars
-    zfs_devices: '{{ zfs_devices | mandatory(''Please provide ZFS devices, e.g. -e zfs_devices="[nvme0n1,nvme1n1]"'') }}'
-    cert_email: '{{ cert_email | mandatory(''Please provide cert email, e.g. -e cert_email="your@email.com"'') }}'
-    domain_name: '{{ domain_name | mandatory(''Please provide domain name, e.g. -e domain_name="your.domain.com"'') }}'
-    pg: "{{ pg | mandatory('Please provide postgresql version, e.g. -e pg=16') }}"
-
-    # Vars
     quicd_target_path: "/usr/local/bin/quicd"
     cert_path: "/etc/quic/certs"
     tank_data_dir: "/tank/data"
     quicd_grpc_port: "8443"
+    # Required user-provided vars
+    zfs_devices: '{{ zfs_devices | mandatory(''Please provide ZFS devices, e.g. -e zfs_devices="[nvme0n1,nvme1n1]"'') }}'
+    cert_email: '{{ cert_email | mandatory(''Please provide cert email, e.g. -e cert_email="your@email.com"'') }}'
+    cert_domain: '{{ cert_domain | mandatory(''Please provide cert domain, e.g. -e cert_domain="your.domain.com"'') }}'
+    pg_version: "{{ pg_version | mandatory('Please provide postgresql version, e.g. -e pg_version=16') }}"
 
   tasks:
     # ===============================================
@@ -46,17 +44,9 @@
       apt:
         name:
           - zfsutils-linux
-          - "postgresql-{{ pg }}"
+          - "postgresql-{{ pg_version }}"
           - postgresql-contrib
-          - "postgresql-{{ pg }}-pgaudit"
-          - "postgresql-{{ pg }}-cron"
-          - "postgresql-{{ pg }}-postgis-3"
-          - "postgresql-{{ pg }}-postgis-3-scripts"
           - pgbackrest
-          - unzip
-          - wget
-          - curl
-          - jq
         state: present
 
     - name: Stop and disable default PostgreSQL service
@@ -89,7 +79,7 @@
             content: |
               server {
                   listen 80;
-                  server_name {{ domain_name }};
+                  server_name {{ cert_domain }};
 
                   location /.well-known/acme-challenge/ {
                       root /var/www/certbot;
@@ -127,16 +117,16 @@
 
         - name: Obtain Let's Encrypt certificate
           command: |
-            certbot certonly --webroot -w /var/www/certbot -d {{ domain_name }}
+            certbot certonly --webroot -w /var/www/certbot -d {{ cert_domain }}
             --non-interactive --agree-tos --email {{ cert_email }}
           args:
-            creates: /etc/letsencrypt/live/{{ domain_name }}/fullchain.pem
+            creates: /etc/letsencrypt/live/{{ cert_domain }}/fullchain.pem
 
         - name: Create TLS certificate directory for quicd
           file:
             path: "{{ cert_path }}"
             state: directory
-            owner: postgres
+            owner: quic
             group: postgres
             mode: "0755"
 
@@ -144,20 +134,20 @@
           copy:
             src: "{{ item.src }}"
             dest: "{{ item.dest }}"
-            owner: postgres
+            owner: quic
             group: postgres
             mode: "{{ item.mode }}"
             remote_src: yes
           loop:
             - {
-                src: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem",
+                src: "/etc/letsencrypt/live/{{ cert_domain }}/fullchain.pem",
                 dest: "{{ cert_path }}/server.crt",
                 mode: "0644",
               }
             - {
-                src: "/etc/letsencrypt/live/{{ domain_name }}/privkey.pem",
+                src: "/etc/letsencrypt/live/{{ cert_domain }}/privkey.pem",
                 dest: "{{ cert_path }}/server.key",
-                mode: "0600",
+                mode: "0640",
               }
 
         - name: Setup auto-renewal cron job
@@ -165,25 +155,37 @@
             name: "Let's Encrypt renewal"
             minute: "0"
             hour: "3"
-            job: "certbot renew --quiet --post-hook 'cp /etc/letsencrypt/live/{{ domain_name }}/fullchain.pem {{ cert_path }}/server.crt && cp /etc/letsencrypt/live/{{ domain_name }}/privkey.pem {{ cert_path }}/server.key && chown postgres:postgres {{ cert_path }}/* && systemctl restart quicd'"
+            job: "certbot renew --quiet --post-hook 'cp /etc/letsencrypt/live/{{ cert_domain }}/fullchain.pem {{ cert_path }}/server.crt && cp /etc/letsencrypt/live/{{ cert_domain }}/privkey.pem {{ cert_path }}/server.key && chown quic:postgres {{ cert_path }}/* && systemctl restart quicd'"
 
     # ===============================================
     # System Setup
     # ===============================================
+    - name: Create quic system user
+      user:
+        name: quic
+        system: yes
+        shell: /bin/false
+        home: /var/lib/quic
+        create_home: yes
+        groups: postgres
+        append: yes
+
     - name: Create Quic log directory
       file:
         path: "/var/log/quic"
         state: directory
-        owner: postgres
-        group: postgres
+        owner: quic
+        group: quic
         mode: "0755"
 
-    - name: Setup postgres user sudoers permissions for Quic agent
+    - name: Setup quic user sudoers permissions for system operations
       copy:
         content: |
-          # Quic agent permissions for postgres user
-          postgres ALL=(ALL) NOPASSWD: /sbin/zfs, /sbin/zpool, /usr/sbin/ufw, /bin/kill, /usr/bin/pgrep, /bin/rm, /bin/sh, /usr/lib/postgresql/*/bin/*, /bin/systemctl, /usr/bin/tee
-        dest: /etc/sudoers.d/postgres-quic
+          # Quic agent permissions for system operations
+          quic ALL=(ALL) NOPASSWD: /sbin/zfs, /sbin/zpool, /usr/sbin/ufw, /bin/kill, /usr/bin/pgrep, /bin/rm, /bin/systemctl, /usr/bin/tee
+          # Allow quic to run postgres commands as postgres user
+          quic ALL=(postgres) NOPASSWD: /usr/lib/postgresql/*/bin/*, /bin/sh
+        dest: /etc/sudoers.d/quic-agent
         mode: "0440"
         validate: "visudo -cf %s"
 
@@ -191,7 +193,7 @@
       file:
         path: /etc/quic
         state: directory
-        owner: postgres
+        owner: quic
         group: postgres
         mode: "0755"
 
@@ -302,7 +304,7 @@
 
           [Service]
           Type=simple
-          User=postgres
+          User=quic
           WorkingDirectory=/tank
           ExecStart={{ quicd_target_path }}
           Restart=always

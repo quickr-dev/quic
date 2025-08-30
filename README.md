@@ -18,6 +18,28 @@ $ quic delete <branch-name>
 - **Zero hassle**: quic manages resource creation and cleanup
 - **Secure & isolated**: dedicated ports, TLS, firewall rules
 
+
+## Get started
+
+#### Setup your server
+
+Script currently designed to run in your host.
+
+```bash
+ssh into.your.server
+
+# list devices
+lsblk
+
+# one-liner setup
+curl -fsSL https://raw.githubusercontent.com/quickr-dev/quic/main/scripts/base-setup.sh | \
+sudo bash -s -- \
+  --devices 'nvme0n1,nvme1n1' \
+  --cert-email 'admin@domain.com' \
+  --cert-domain 'domain.com' \
+  --pg-version '16'
+```
+
 ## Use Cases
 Perfect for development git workflows, PR/staging/demo environments, bug investigation.
 
