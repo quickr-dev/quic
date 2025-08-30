@@ -21,9 +21,9 @@ $ quic delete <branch-name>
 
 ## Get started
 
-#### Setup your server
+#### Host setup
 
-Script currently designed to run in your host.
+Scripts are currently designed to run in your host.
 
 ```bash
 ssh into.your.server
@@ -31,13 +31,17 @@ ssh into.your.server
 # list devices
 lsblk
 
-# one-liner setup
+# base system setup (includes self-signed TLS certificates)
 curl -fsSL https://raw.githubusercontent.com/quickr-dev/quic/main/scripts/base-setup.sh | \
 sudo bash -s -- \
   --devices 'nvme0n1,nvme1n1' \
-  --cert-email 'admin@domain.com' \
-  --cert-domain 'domain.com' \
   --pg-version '16'
+
+# add trusted TLS certificates (recommended but optional)
+curl -fsSL https://raw.githubusercontent.com/quickr-dev/quic/main/scripts/letsencrypt-setup.sh | \
+sudo bash -s -- \
+  --cert-email 'admin@domain.com' \
+  --cert-domain 'domain.com'
 ```
 
 ## Use Cases

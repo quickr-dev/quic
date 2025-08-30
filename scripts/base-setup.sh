@@ -86,8 +86,6 @@ echo "Running ansible playbook..."
 curl -fsSL https://raw.githubusercontent.com/quickr-dev/quic/main/ansible/base-setup.yml -o base-setup.yml
 ansible-playbook base-setup.yml \
     -e "zfs_devices=[$(echo "$DEVICES" | sed 's/,/,/g' | sed 's/[^,]*/"&"/g')]" \
-    -e "cert_email=$CERT_EMAIL" \
-    -e "cert_domain=$CERT_DOMAIN" \
     -e "pg_version=$PG_VERSION"
 
 # Clean up downloaded file if successful

@@ -19,7 +19,7 @@ type CheckoutInfo struct {
 }
 
 func (c *CheckoutInfo) ConnectionString(host string) string {
-	return fmt.Sprintf("postgresql://admin:%s@%s:%d/postgres?sslmode=verify-full&sslrootcert=system",
+	return fmt.Sprintf("postgresql://admin:%s@%s:%d/postgres",
 		c.AdminPassword, host, c.Port)
 }
 

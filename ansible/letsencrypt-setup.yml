@@ -1,0 +1,113 @@
+---
+- name: Quic Let's Encrypt Setup
+  hosts: localhost
+  become: yes
+  gather_facts: yes
+  vars:
+    cert_path: "/etc/quic/certs"
+    # Required user-provided vars
+    cert_email: '{{ cert_email | mandatory(''Please provide cert email, e.g. -e cert_email="your@email.com"'') }}'
+    cert_domain: '{{ cert_domain | mandatory(''Please provide cert domain, e.g. -e cert_domain="your.domain.com"'') }}'
+
+  tasks:
+    # ===============================================
+    # Let's Encrypt Setup
+    # ===============================================
+    - name: Let's Encrypt Setup
+      block:
+        - name: Install certbot and nginx
+          apt:
+            name:
+              - certbot
+              - python3-certbot-nginx
+              - nginx
+            state: present
+
+        - name: Create nginx config for Let's Encrypt validation
+          copy:
+            content: |
+              server {
+                  listen 80;
+                  server_name {{ cert_domain }};
+
+                  location /.well-known/acme-challenge/ {
+                      root /var/www/certbot;
+                  }
+
+                  location / {
+                      return 301 https://$server_name$request_uri;
+                  }
+              }
+            dest: /etc/nginx/sites-available/letsencrypt
+            mode: "0644"
+
+        - name: Enable nginx site
+          file:
+            src: /etc/nginx/sites-available/letsencrypt
+            dest: /etc/nginx/sites-enabled/letsencrypt
+            state: link
+
+        - name: Remove default nginx site
+          file:
+            path: /etc/nginx/sites-enabled/default
+            state: absent
+
+        - name: Create certbot webroot directory
+          file:
+            path: /var/www/certbot
+            state: directory
+            mode: "0755"
+
+        - name: Open port 80 for Let's Encrypt validation
+          ufw:
+            rule: allow
+            port: "80"
+            proto: tcp
+
+        - name: Start nginx for Let's Encrypt validation
+          systemd:
+            name: nginx
+            state: restarted
+            enabled: yes
+
+        - name: Obtain Let's Encrypt certificate
+          command: |
+            certbot certonly --webroot -w /var/www/certbot -d {{ cert_domain }}
+            --non-interactive --agree-tos --email {{ cert_email }}
+          args:
+            creates: /etc/letsencrypt/live/{{ cert_domain }}/fullchain.pem
+
+        - name: Copy Let's Encrypt certificates for quicd (overwrite self-signed)
+          copy:
+            src: "{{ item.src }}"
+            dest: "{{ item.dest }}"
+            owner: quic
+            group: postgres
+            mode: "{{ item.mode }}"
+            remote_src: yes
+          loop:
+            - {
+                src: "/etc/letsencrypt/live/{{ cert_domain }}/fullchain.pem",
+                dest: "{{ cert_path }}/server.crt",
+                mode: "0644",
+              }
+            - {
+                src: "/etc/letsencrypt/live/{{ cert_domain }}/privkey.pem",
+                dest: "{{ cert_path }}/server.key",
+                mode: "0640",
+              }
+
+        - name: Setup auto-renewal cron job
+          cron:
+            name: "Let's Encrypt renewal"
+            minute: "0"
+            hour: "3"
+            job: "certbot renew --quiet --post-hook 'cp /etc/letsencrypt/live/{{ cert_domain }}/fullchain.pem {{ cert_path }}/server.crt && cp /etc/letsencrypt/live/{{ cert_domain }}/privkey.pem {{ cert_path }}/server.key && chown quic:postgres {{ cert_path }}/* && systemctl restart quicd'"
+
+
+  handlers:
+    - name: restart quicd
+      systemd:
+        name: quicd
+        state: restarted
+        daemon_reload: yes

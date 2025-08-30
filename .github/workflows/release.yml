@@ -41,9 +41,9 @@ jobs:
           GOOS=linux GOARCH=amd64 go build -ldflags="-X 'github.com/quickr-dev/quic/internal/version.Version=${{ steps.version.outputs.version }}'" -o quic-linux-amd64 ./cmd/quic
 
           # Build quicd
-          GOOS=darwin GOARCH=amd64 go build -ldflags="-X 'github.com/quickr-dev/quic/internal/version.Version=${{ steps.version.outputs.version }}'" -o quicd-darwin-amd64 ./cmd/quicd
-          GOOS=darwin GOARCH=arm64 go build -ldflags="-X 'github.com/quickr-dev/quic/internal/version.Version=${{ steps.version.outputs.version }}'" -o quicd-darwin-arm64 ./cmd/quicd
-          GOOS=linux GOARCH=amd64 go build -ldflags="-X 'github.com/quickr-dev/quic/internal/version.Version=${{ steps.version.outputs.version }}'" -o quicd-linux-amd64 ./cmd/quicd
+          GOOS=darwin GOARCH=amd64 go build -o quicd-darwin-amd64 ./cmd/quicd
+          GOOS=darwin GOARCH=arm64 go build -o quicd-darwin-arm64 ./cmd/quicd
+          GOOS=linux GOARCH=amd64 go build -o quicd-linux-amd64 ./cmd/quicd
 
       - name: Generate checksums
         run: |
