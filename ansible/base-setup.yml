@@ -1,0 +1,334 @@
+---
+- name: Quic Base System Setup
+  hosts: localhost
+  become: yes
+  gather_facts: yes
+  vars:
+    # Required user-provided vars
+    zfs_devices: '{{ zfs_devices | mandatory(''Please provide ZFS devices, e.g. -e zfs_devices="[nvme0n1,nvme1n1]"'') }}'
+    cert_email: '{{ cert_email | mandatory(''Please provide cert email, e.g. -e cert_email="your@email.com"'') }}'
+    domain_name: '{{ domain_name | mandatory(''Please provide domain name, e.g. -e domain_name="your.domain.com"'') }}'
+    pg: "{{ pg | mandatory('Please provide postgresql version, e.g. -e pg=16') }}"
+
+    # Vars
+    quicd_target_path: "/usr/local/bin/quicd"
+    cert_path: "/etc/quic/certs"
+    tank_data_dir: "/tank/data"
+    quicd_grpc_port: "8443"
+
+  tasks:
+    # ===============================================
+    # Firewall Setup
+    # ===============================================
+    - name: Open required firewall ports
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "22" # SSH
+        - "80" # HTTP for Let's Encrypt
+        - "{{ quicd_grpc_port }}"
+
+    - name: Ensure UFW is enabled
+      ufw:
+        state: enabled
+
+    # ===============================================
+    # Package Installation
+    # ===============================================
+    - name: Update package cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - zfsutils-linux
+          - "postgresql-{{ pg }}"
+          - postgresql-contrib
+          - "postgresql-{{ pg }}-pgaudit"
+          - "postgresql-{{ pg }}-cron"
+          - "postgresql-{{ pg }}-postgis-3"
+          - "postgresql-{{ pg }}-postgis-3-scripts"
+          - pgbackrest
+          - unzip
+          - wget
+          - curl
+          - jq
+        state: present
+
+    - name: Stop and disable default PostgreSQL service
+      systemd:
+        name: postgresql
+        state: stopped
+        enabled: false
+
+    # ===============================================
+    # Let's Encrypt Setup
+    # ===============================================
+    - name: Check if TLS certificates exist
+      stat:
+        path: "{{ cert_path }}/server.crt"
+      register: cert_exists
+
+    - name: Let's Encrypt Setup
+      when: not cert_exists.stat.exists
+      block:
+        - name: Install certbot and nginx
+          apt:
+            name:
+              - certbot
+              - python3-certbot-nginx
+              - nginx
+            state: present
+
+        - name: Create nginx config for Let's Encrypt validation
+          copy:
+            content: |
+              server {
+                  listen 80;
+                  server_name {{ domain_name }};
+
+                  location /.well-known/acme-challenge/ {
+                      root /var/www/certbot;
+                  }
+
+                  location / {
+                      return 301 https://$server_name$request_uri;
+                  }
+              }
+            dest: /etc/nginx/sites-available/letsencrypt
+            mode: "0644"
+
+        - name: Enable nginx site
+          file:
+            src: /etc/nginx/sites-available/letsencrypt
+            dest: /etc/nginx/sites-enabled/letsencrypt
+            state: link
+
+        - name: Remove default nginx site
+          file:
+            path: /etc/nginx/sites-enabled/default
+            state: absent
+
+        - name: Create certbot webroot directory
+          file:
+            path: /var/www/certbot
+            state: directory
+            mode: "0755"
+
+        - name: Start nginx for Let's Encrypt validation
+          systemd:
+            name: nginx
+            state: restarted
+            enabled: yes
+
+        - name: Obtain Let's Encrypt certificate
+          command: |
+            certbot certonly --webroot -w /var/www/certbot -d {{ domain_name }}
+            --non-interactive --agree-tos --email {{ cert_email }}
+          args:
+            creates: /etc/letsencrypt/live/{{ domain_name }}/fullchain.pem
+
+        - name: Create TLS certificate directory for quicd
+          file:
+            path: "{{ cert_path }}"
+            state: directory
+            owner: postgres
+            group: postgres
+            mode: "0755"
+
+        - name: Copy Let's Encrypt certificates for quicd
+          copy:
+            src: "{{ item.src }}"
+            dest: "{{ item.dest }}"
+            owner: postgres
+            group: postgres
+            mode: "{{ item.mode }}"
+            remote_src: yes
+          loop:
+            - {
+                src: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem",
+                dest: "{{ cert_path }}/server.crt",
+                mode: "0644",
+              }
+            - {
+                src: "/etc/letsencrypt/live/{{ domain_name }}/privkey.pem",
+                dest: "{{ cert_path }}/server.key",
+                mode: "0600",
+              }
+
+        - name: Setup auto-renewal cron job
+          cron:
+            name: "Let's Encrypt renewal"
+            minute: "0"
+            hour: "3"
+            job: "certbot renew --quiet --post-hook 'cp /etc/letsencrypt/live/{{ domain_name }}/fullchain.pem {{ cert_path }}/server.crt && cp /etc/letsencrypt/live/{{ domain_name }}/privkey.pem {{ cert_path }}/server.key && chown postgres:postgres {{ cert_path }}/* && systemctl restart quicd'"
+
+    # ===============================================
+    # System Setup
+    # ===============================================
+    - name: Create Quic log directory
+      file:
+        path: "/var/log/quic"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: "0755"
+
+    - name: Setup postgres user sudoers permissions for Quic agent
+      copy:
+        content: |
+          # Quic agent permissions for postgres user
+          postgres ALL=(ALL) NOPASSWD: /sbin/zfs, /sbin/zpool, /usr/sbin/ufw, /bin/kill, /usr/bin/pgrep, /bin/rm, /bin/sh, /usr/lib/postgresql/*/bin/*, /bin/systemctl, /usr/bin/tee
+        dest: /etc/sudoers.d/postgres-quic
+        mode: "0440"
+        validate: "visudo -cf %s"
+
+    - name: Ensure /etc/quic directory exists
+      file:
+        path: /etc/quic
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: "0755"
+
+    # ===============================================
+    # ZFS Encryption Setup
+    # ===============================================
+    - name: Generate ZFS encryption key
+      command: openssl rand -out /etc/quic/zfs-key 32
+      args:
+        creates: /etc/quic/zfs-key
+
+    - name: Set ZFS key permissions
+      file:
+        path: /etc/quic/zfs-key
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Check if tank pool exists and is encrypted
+      shell: zpool status tank && zfs get encryption tank
+      register: tank_status
+      failed_when: false
+      changed_when: false
+
+    - name: Display tank encryption status
+      debug:
+        msg: "Tank pool status: {{ 'exists' if tank_status.rc == 0 else 'does not exist' }} | Encryption: {{ 'enabled' if 'aes' in tank_status.stdout else 'disabled' }}"
+
+    - name: Set up encrypted tank pool if needed
+      block:
+        - name: Build ZFS device list
+          set_fact:
+            zfs_device_list: "{{ zfs_devices | map('regex_replace', '^(.*)$', '/dev/\\1') | join(' ') }}"
+
+        - name: Create encrypted tank pool
+          shell: |
+            zpool create tank {{ zfs_device_list }} \
+              -O encryption=aes-256-gcm \
+              -O keylocation=file:///etc/quic/zfs-key \
+              -O keyformat=raw
+            zfs set recordsize=8K tank
+            zfs set compression=lz4 tank
+            zfs set atime=off tank
+            zfs set logbias=throughput tank
+          args:
+            creates: /tank
+
+        - name: Set postgres ownership on tank pool
+          command: chown postgres:postgres /tank
+
+        - name: Create data directory in tank
+          file:
+            path: "{{ tank_data_dir }}"
+            state: directory
+            owner: postgres
+            group: postgres
+            mode: "0700"
+      when: tank_status.rc != 0 or 'aes' not in tank_status.stdout
+
+    - name: Create ZFS auto-unlock service
+      copy:
+        content: |
+          [Unit]
+          Description=Auto-unlock encrypted ZFS datasets
+          After=zfs-import.target
+          Before=postgresql.service quicd.service
+
+          [Service]
+          Type=oneshot
+          ExecStart=/bin/bash -c 'zfs load-key -a 2>/dev/null || true; zfs mount -a'
+          User=root
+          RemainAfterExit=yes
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/zfs-unlock.service
+        mode: "0644"
+
+    - name: Enable ZFS unlock service
+      systemd:
+        name: zfs-unlock
+        enabled: yes
+        daemon_reload: yes
+
+    # ===============================================
+    # Quicd Installation
+    # ===============================================
+    - name: Download latest quicd binary from GitHub releases
+      get_url:
+        url: "https://github.com/quickr-dev/quic/releases/latest/download/quicd-linux-amd64"
+        dest: "{{ quicd_target_path }}"
+        owner: root
+        group: root
+        mode: "0755"
+        force: yes
+      notify: restart quicd
+
+    # ===============================================
+    # Systemd Services
+    # ===============================================
+    - name: Create Quic gRPC systemd service
+      copy:
+        content: |
+          [Unit]
+          Description=Quicd
+          Documentation=https://github.com/quickr-dev/quic
+          After=network.target zfs-unlock.service
+
+          [Service]
+          Type=simple
+          User=postgres
+          WorkingDirectory=/tank
+          ExecStart={{ quicd_target_path }}
+          Restart=always
+          RestartSec=5
+          StandardOutput=journal
+          StandardError=journal
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/quicd.service
+        mode: "0644"
+      notify: restart quicd
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start quicd service
+      systemd:
+        name: quicd
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: restart quicd
+      systemd:
+        name: quicd
+        state: restarted
+        daemon_reload: yes
