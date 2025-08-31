@@ -47,7 +47,7 @@ jobs:
 
       - name: Generate checksums
         run: |
-          shasum -a 256 quic-* > checksums.txt
+          shasum -a 256 quic* > checksums.txt
           cat checksums.txt
 
       - name: Create GitHub Release
