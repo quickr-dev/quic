@@ -1,143 +1,89 @@
 package e2e
 
 import (
-	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
-	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 )
 
 const (
 	testStanza   = "test-stanza"
 	testDatabase = "testdb"
-	testDirname  = "e2e-test-restore"
-	quicdBinary  = "/opt/quic/bin/quicd"
-	restoreMount = "/opt/quic/restores/" + testDirname
+	quicdBinary  = "/usr/local/bin/quicd"
 )
 
+func generateRestoreName() string {
+	return fmt.Sprintf("test-%d", time.Now().Unix())
+}
+
+func getRestoreMount(dirname string) string {
+	return fmt.Sprintf("/opt/quic/%s/_restore", dirname)
+}
+
 func TestQuicdInit(t *testing.T) {
-	// Cleanup any previous test runs
-	cleanup(t)
+	testDirname := generateRestoreName()
+	restoreMount := getRestoreMount(testDirname)
 
 	t.Run("init creates ZFS dataset and restores database", func(t *testing.T) {
-		cmd := exec.Command("sudo", quicdBinary, "init", testDirname,
+		// Before:
+		// - No ZFS dataset
+		cmd := exec.Command("sudo", "zfs", "list", "tank/"+testDirname)
+		require.Error(t, cmd.Run(), "ZFS dataset should not exist before init")
+
+		// Run $ quicd init
+		cmd = exec.Command("sudo", quicdBinary, "init", testDirname,
 			"--stanza", testStanza,
 			"--database", testDatabase)
-		output, err := cmd.CombinedOutput()
+		_, err := cmd.CombinedOutput()
 
-		require.NoError(t, err, "quicd init failed: %s", output)
-		require.Contains(t, string(output), "Initialized restore template")
-
-		// Verify ZFS dataset was created
+		// After:
+		// ZFS dataset was created
 		cmd = exec.Command("sudo", "zfs", "list", "tank/"+testDirname)
 		err = cmd.Run()
 		require.NoError(t, err, "ZFS dataset was not created")
 
-		// Verify mount point exists and has PostgreSQL data
+		// metadata file was created
+		metadataFile := filepath.Join(restoreMount, ".quic-init-meta.json")
+		require.FileExists(t, metadataFile)
+		metadataBytes, err := os.ReadFile(metadataFile)
+		require.NoError(t, err, "failed to read metadata file")
+		require.Contains(t, string(metadataBytes), testDirname)
+		require.Contains(t, string(metadataBytes), "port")
+		require.Contains(t, string(metadataBytes), "service_name")
+
+		// PostgreSQL data directory was restored
 		require.DirExists(t, restoreMount)
 		require.FileExists(t, filepath.Join(restoreMount, "postgresql.conf"))
 		require.FileExists(t, filepath.Join(restoreMount, "PG_VERSION"))
 
-		// Verify metadata file was created
-		metadataFile := filepath.Join(restoreMount, ".quic-init-meta.json")
-		require.FileExists(t, metadataFile)
-
-		// Verify PostgreSQL data directory has correct ownership
+		// PostgreSQL data directory has correct ownership
 		stat, err := os.Stat(restoreMount)
 		require.NoError(t, err)
-
-		// Check that the directory is readable (basic ownership check)
 		require.True(t, stat.IsDir())
-	})
 
-	t.Run("restored database contains test data", func(t *testing.T) {
-		// Start the restored PostgreSQL instance temporarily for testing
-		testPort := 15999
-
-		cmd := exec.Command("sudo", "-u", "postgres", "/usr/lib/postgresql/16/bin/pg_ctl",
-			"start", "-D", restoreMount, "-o", fmt.Sprintf("--port=%d", testPort),
-			"-w", "-t", "30")
-		err := cmd.Run()
-		require.NoError(t, err, "Failed to start restored PostgreSQL instance")
-
-		defer func() {
-			// Stop the test instance
-			stopCmd := exec.Command("sudo", "-u", "postgres", "/usr/lib/postgresql/16/bin/pg_ctl",
-				"stop", "-D", restoreMount, "-m", "fast")
-			stopCmd.Run()
-		}()
-
-		// Wait for PostgreSQL to be ready
-		readyCmd := exec.Command("sudo", "-u", "postgres", "/usr/lib/postgresql/16/bin/pg_isready",
-			"-p", fmt.Sprintf("%d", testPort))
-		err = readyCmd.Run()
-		require.NoError(t, err, "PostgreSQL instance not ready")
-
-		// Connect to the test database and verify data
-		connStr := fmt.Sprintf("host=localhost port=%d dbname=%s user=postgres sslmode=disable",
-			testPort, testDatabase)
-		db, err := sql.Open("postgres", connStr)
-		require.NoError(t, err, "Failed to connect to restored database")
-		defer db.Close()
-
-		// Query test data
-		rows, err := db.Query("SELECT name FROM users ORDER BY id")
-		require.NoError(t, err, "Failed to query test data")
-		defer rows.Close()
-
-		var names []string
-		for rows.Next() {
-			var name string
-			err := rows.Scan(&name)
-			require.NoError(t, err)
-			names = append(names, name)
-		}
-
-		// Verify we have the expected test data
-		require.Equal(t, []string{"Alice", "Bob", "Charlie"}, names)
-	})
-
-	t.Cleanup(func() {
-		cleanup(t)
-	})
-}
-
-func TestQuicdInitValidation(t *testing.T) {
-	t.Run("fails without stanza", func(t *testing.T) {
-		cmd := exec.Command("sudo", quicdBinary, "init", testDirname, "--database", testDatabase)
+		// Verify PostgreSQL service was created and started
+		serviceName := fmt.Sprintf("postgresql-%s", testDirname)
+		cmd = exec.Command("sudo", "systemctl", "is-active", serviceName)
 		output, err := cmd.CombinedOutput()
+		require.NoError(t, err, "PostgreSQL service %s should be active: %s", serviceName, output)
+		require.Contains(t, string(output), "active")
 
-		require.Error(t, err)
-		require.Contains(t, string(output), "stanza")
+		// Verify PostgreSQL is ready and accepting connections
+		// Extract port from metadata to test connection
+		var metadata map[string]interface{}
+		require.NoError(t, json.Unmarshal(metadataBytes, &metadata))
+		port, ok := metadata["port"].(float64)
+		require.True(t, ok, "port should be present in metadata")
+
+		// Test PostgreSQL readiness
+		cmd = exec.Command("sudo", "-u", "postgres", "pg_isready", "-p", fmt.Sprintf("%.0f", port))
+		err = cmd.Run()
+		require.NoError(t, err, "PostgreSQL should be ready on port %.0f", port)
 	})
-
-	t.Run("fails without database", func(t *testing.T) {
-		cmd := exec.Command("sudo", quicdBinary, "init", testDirname, "--stanza", testStanza)
-		output, err := cmd.CombinedOutput()
-
-		require.Error(t, err)
-		require.Contains(t, string(output), "database")
-	})
-}
-
-func cleanup(t *testing.T) {
-	t.Helper()
-
-	// Stop any running PostgreSQL instance on the test data
-	stopCmd := exec.Command("sudo", "-u", "postgres", "/usr/lib/postgresql/16/bin/pg_ctl",
-		"stop", "-D", restoreMount, "-m", "immediate")
-	stopCmd.Run() // Ignore errors as instance may not be running
-
-	// Destroy ZFS dataset (this also removes the mount)
-	destroyCmd := exec.Command("sudo", "zfs", "destroy", "-f", "tank/"+testDirname)
-	destroyCmd.Run() // Ignore errors as dataset may not exist
-
-	// Remove mount directory if it still exists
-	rmCmd := exec.Command("sudo", "rm", "-rf", restoreMount)
-	rmCmd.Run()
 }

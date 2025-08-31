@@ -9,7 +9,7 @@
     tank_data_dir: "/tank/data"
     quicd_grpc_port: "8443"
     # Required user-provided vars
-    zfs_devices: '{{ zfs_devices | mandatory(''Please provide ZFS devices, e.g. -e zfs_devices="[nvme0n1,nvme1n1]"'') }}'
+    zfs_devices: "{{ zfs_devices | mandatory('Please provide ZFS devices, e.g. -e zfs_devices=/dev/nvme0n1,/dev/nvme1n1') }}"
     pg_version: "{{ pg_version | mandatory('Please provide postgresql version, e.g. -e pg_version=16') }}"
 
   tasks:
@@ -148,7 +148,7 @@
       block:
         - name: Build ZFS device list
           set_fact:
-            zfs_device_list: "{{ zfs_devices | map('regex_replace', '^(.*)$', '/dev/\\1') | join(' ') }}"
+            zfs_device_list: "{{ zfs_devices.split(',') | join(' ') }}"
 
         - name: Create encrypted tank pool
           shell: |

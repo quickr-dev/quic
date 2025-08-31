@@ -5,9 +5,7 @@ import (
 	"log"
 	"net"
 	"os"
-	"os/exec"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -46,11 +44,23 @@ var initCmd = &cobra.Command{
 			return fmt.Errorf("--database flag is required")
 		}
 
-		if err := performInit(dirname, stanza, database); err != nil {
+		agentService := agent.NewCheckoutService(&agent.CheckoutConfig{
+			ZFSParentDataset: "tank",
+			PostgresBinPath:  "/usr/lib/postgresql/16/bin",
+			StartPort:        15432,
+			EndPort:          16432,
+		})
+		initConfig := &agent.InitConfig{
+			Stanza:   stanza,
+			Database: database,
+			Dirname:  dirname,
+		}
+
+		_, err := agentService.PerformInit(initConfig)
+		if err != nil {
 			return fmt.Errorf("init failed: %w", err)
 		}
 
-		fmt.Printf("Initialized restore template")
 		return nil
 	},
 }
@@ -69,41 +79,6 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-}
-
-func performInit(dirname, stanza, database string) error {
-	datasetPath := fmt.Sprintf("tank/%s", dirname)
-	mountPath := fmt.Sprintf("/opt/quic/restores/%s", dirname)
-
-	cmd := exec.Command("sudo", "zfs", "create", "-o", fmt.Sprintf("mountpoint=%s", mountPath), datasetPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("creating ZFS dataset: %w", err)
-	}
-
-	if err := exec.Command("sudo", "pgbackrest", "--stanza="+stanza, "--config=/etc/pgbackrest.conf", "restore", "--pg1-path="+mountPath).Run(); err != nil {
-		return fmt.Errorf("pgbackrest restore: %w", err)
-	}
-
-	if err := exec.Command("sudo", "chown", "-R", "postgres:postgres", mountPath).Run(); err != nil {
-		return fmt.Errorf("setting ownership: %w", err)
-	}
-
-	// Store metadata about the restore for future use
-	metadataPath := fmt.Sprintf("%s/.quic-init-meta.json", mountPath)
-	metadata := fmt.Sprintf(`{
-  "dirname": "%s",
-  "stanza": "%s",
-  "database": "%s",
-  "created_at": "%s"
-}`, dirname, stanza, database, time.Now().Format(time.RFC3339))
-
-	cmd = exec.Command("sudo", "tee", metadataPath)
-	cmd.Stdin = strings.NewReader(metadata)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("writing metadata: %w", err)
-	}
-
-	return nil
 }
 
 func runDaemon() error {

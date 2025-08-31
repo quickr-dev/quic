@@ -40,9 +40,9 @@ func (s *CheckoutService) ListCheckouts(ctx context.Context) ([]*CheckoutInfo, e
 		if len(parts) < 2 {
 			continue // Invalid format
 		}
-		
+
 		cloneName := parts[len(parts)-1] // Last part is the clone name
-		
+
 		// Try to get checkout info for this clone
 		checkout, err := s.discoverCheckoutFromOS(cloneName)
 		if err != nil {
@@ -50,7 +50,7 @@ func (s *CheckoutService) ListCheckouts(ctx context.Context) ([]*CheckoutInfo, e
 			fmt.Printf("Warning: failed to load checkout info for %s: %v\n", cloneName, err)
 			continue
 		}
-		
+
 		if checkout != nil {
 			checkouts = append(checkouts, checkout)
 		}
