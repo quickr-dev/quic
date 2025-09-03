@@ -43,8 +43,7 @@ func (s *CheckoutService) PerformInit(config *InitConfig) (*InitResult, error) {
 	}
 
 	// Perform pgbackrest restore
-	// TODO add --type=standby
-	if err := exec.Command("sudo", "pgbackrest", "--archive-mode=off", "--stanza="+config.Stanza, "--config=/etc/pgbackrest.conf", "restore", "--pg1-path="+mountPath).Run(); err != nil {
+	if err := exec.Command("sudo", "pgbackrest", "--archive-mode=off", "--stanza="+config.Stanza, "--config=/etc/pgbackrest.conf", "restore", "--type=standby", "--pg1-path="+mountPath).Run(); err != nil {
 		return nil, fmt.Errorf("pgbackrest restore: %w", err)
 	}
 
