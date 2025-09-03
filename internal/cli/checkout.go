@@ -25,6 +25,16 @@ var checkoutCmd = &cobra.Command{
 			return fmt.Errorf("loading config: %w", err)
 		}
 
+		// Get restore name from flag or config
+		restoreName, _ := cmd.Flags().GetString("restore")
+		if restoreName == "" {
+			restoreName = cfg.SelectedRestore
+		}
+
+		if restoreName == "" {
+			return fmt.Errorf("restore template not specified. Use --restore flag or set selectedRestore in config")
+		}
+
 		client, serverHostname, cleanup, err := getQuicClient()
 		if err != nil {
 			return err
@@ -36,7 +46,8 @@ var checkoutCmd = &cobra.Command{
 		defer cancel()
 
 		req := &pb.CreateCheckoutRequest{
-			CloneName: branchName,
+			CloneName:   branchName,
+			RestoreName: restoreName,
 		}
 
 		resp, err := client.CreateCheckout(ctx, req)
@@ -53,4 +64,8 @@ var checkoutCmd = &cobra.Command{
 		fmt.Println(connectionString)
 		return nil
 	},
+}
+
+func init() {
+	checkoutCmd.Flags().String("restore", "", "Name of the restore template to use for checkout")
 }

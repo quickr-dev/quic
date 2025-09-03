@@ -24,6 +24,16 @@ var deleteCmd = &cobra.Command{
 			return fmt.Errorf("loading config: %w", err)
 		}
 
+		// Get restore name from flag or config
+		restoreName, _ := cmd.Flags().GetString("restore")
+		if restoreName == "" {
+			restoreName = cfg.SelectedRestore
+		}
+
+		if restoreName == "" {
+			return fmt.Errorf("restore template not specified. Use --restore flag or set selectedRestore in config")
+		}
+
 		client, _, cleanup, err := getQuicClient()
 		if err != nil {
 			return err
@@ -35,7 +45,8 @@ var deleteCmd = &cobra.Command{
 		defer cancel()
 
 		req := &pb.DeleteCheckoutRequest{
-			CloneName: branchName,
+			CloneName:   branchName,
+			RestoreName: restoreName,
 		}
 
 		_, err = client.DeleteCheckout(ctx, req)
@@ -46,4 +57,8 @@ var deleteCmd = &cobra.Command{
 		// Silent success - no output on successful delete
 		return nil
 	},
+}
+
+func init() {
+	deleteCmd.Flags().String("restore", "", "Name of the restore template containing the checkout to delete")
 }

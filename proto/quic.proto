@@ -12,6 +12,7 @@ service QuicService {
 
 message CreateCheckoutRequest {
   string clone_name = 1;
+  string restore_name = 2;
 }
 
 message CreateCheckoutResponse {
@@ -20,6 +21,7 @@ message CreateCheckoutResponse {
 
 message DeleteCheckoutRequest {
   string clone_name = 1;
+  string restore_name = 2;
 }
 
 message DeleteCheckoutResponse {

@@ -7,7 +7,7 @@ import (
 	"os/exec"
 )
 
-func (s *CheckoutService) DeleteCheckout(ctx context.Context, cloneName string) (bool, error) {
+func (s *CheckoutService) DeleteCheckout(ctx context.Context, cloneName string, restoreName string) (bool, error) {
 	// Validate and normalize clone name
 	validatedName, err := ValidateCloneName(cloneName)
 	if err != nil {
@@ -15,17 +15,18 @@ func (s *CheckoutService) DeleteCheckout(ctx context.Context, cloneName string) 
 	}
 	cloneName = validatedName
 
-	// First check if checkout exists
-	existing, err := s.discoverCheckoutFromOS(cloneName)
+	zfsConfig := &ZFSConfig{
+		ParentDataset: s.config.ZFSParentDataset,
+		RestoreName:   restoreName,
+	}
+
+	// Check if checkout exists
+	existing, err := s.discoverCheckoutFromOS(zfsConfig, cloneName)
 	if err != nil {
 		return false, fmt.Errorf("checking existing checkout: %w", err)
 	}
 	if existing == nil {
 		return false, nil // Nothing to delete
-	}
-
-	zfsConfig := &ZFSConfig{
-		ParentDataset: s.config.ZFSParentDataset,
 	}
 
 	// Stop and remove systemd service for this clone

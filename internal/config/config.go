@@ -11,6 +11,7 @@ import (
 
 type Config struct {
 	SelectedServer  string                   `json:"selected_server"`
+	SelectedRestore string                   `json:"selected_restore,omitempty"`
 	AuthToken       string                   `json:"auth_token"`
 	LastServerCheck time.Time                `json:"last_server_check"`
 	Servers         map[string]ServerMetrics `json:"servers"`

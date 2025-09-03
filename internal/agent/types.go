@@ -25,14 +25,15 @@ func (c *CheckoutInfo) ConnectionString(host string) string {
 
 type ZFSConfig struct {
 	ParentDataset string
+	RestoreName   string
 }
 
 func (z *ZFSConfig) RestoreDataset() string {
-	return z.ParentDataset + "/_restore"
+	return z.ParentDataset + "/" + z.RestoreName + "/_restore"
 }
 
 func (z *ZFSConfig) CloneDataset(cloneName string) string {
-	return z.ParentDataset + "/" + cloneName
+	return z.ParentDataset + "/" + z.RestoreName + "/" + cloneName
 }
 
 // ValidateCloneName validates that a clone name is safe to use

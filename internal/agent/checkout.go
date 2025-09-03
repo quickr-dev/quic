@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func (s *CheckoutService) CreateCheckout(ctx context.Context, cloneName string, createdBy string) (*CheckoutInfo, error) {
+func (s *CheckoutService) CreateCheckout(ctx context.Context, cloneName string, restoreName string, createdBy string) (*CheckoutInfo, error) {
 	// Try to acquire lock while respecting shutdown state
 	if !s.tryLockWithShutdownCheck() {
 		return nil, fmt.Errorf("service restarting, please retry in a few seconds")
@@ -27,7 +27,12 @@ func (s *CheckoutService) CreateCheckout(ctx context.Context, cloneName string, 
 	}
 	cloneName = validatedName
 
-	existing, err := s.discoverCheckoutFromOS(cloneName)
+	zfsConfig := &ZFSConfig{
+		ParentDataset: s.config.ZFSParentDataset,
+		RestoreName:   restoreName,
+	}
+
+	existing, err := s.discoverCheckoutFromOS(zfsConfig, cloneName)
 	if err != nil {
 		return nil, fmt.Errorf("checking existing checkout: %w", err)
 	}
@@ -45,10 +50,6 @@ func (s *CheckoutService) CreateCheckout(ctx context.Context, cloneName string, 
 	adminPassword, err := generateSecurePassword()
 	if err != nil {
 		return nil, fmt.Errorf("generating password: %w", err)
-	}
-
-	zfsConfig := &ZFSConfig{
-		ParentDataset: s.config.ZFSParentDataset,
 	}
 
 	// Create ZFS snapshot and clone
@@ -135,25 +136,22 @@ func (s *CheckoutService) createZFSClone(config *ZFSConfig, cloneName string) (s
 		})
 	}
 
-	return s.getCloneMountpoint(cloneDataset, cloneName)
+	return s.getCloneMountpoint(config, cloneDataset, cloneName)
 }
 
-func (s *CheckoutService) getCloneMountpoint(cloneDataset, cloneName string) (string, error) {
+func (s *CheckoutService) getCloneMountpoint(config *ZFSConfig, cloneDataset, cloneName string) (string, error) {
 	// Check if clone already exists, if not create it
 	if !s.datasetExists(cloneDataset) {
-		// Construct snapshot name from clone dataset
-		parts := strings.Split(cloneDataset, "/clones/")
-		if len(parts) != 2 {
-			return "", fmt.Errorf("unexpected clone dataset format: %s", cloneDataset)
-		}
-		snapshotName := parts[0] + "/restore@" + cloneName
+		// Construct snapshot name from clone dataset using the restore dataset
+		restoreDataset := config.RestoreDataset()
+		snapshotName := restoreDataset + "@" + cloneName
 		cmd := exec.Command("sudo", "zfs", "clone", snapshotName, cloneDataset)
 		if err := cmd.Run(); err != nil {
 			return "", fmt.Errorf("creating ZFS clone: %w", err)
 		}
 
 		// Set explicit mountpoint for the clone to ensure it's mounted
-		expectedMountpoint := "/opt/quic/clones/" + cloneName
+		expectedMountpoint := "/opt/quic/" + config.RestoreName + "/" + cloneName
 		cmd = exec.Command("sudo", "zfs", "set", "mountpoint="+expectedMountpoint, cloneDataset)
 		if err := cmd.Run(); err != nil {
 			return "", fmt.Errorf("setting ZFS clone mountpoint: %w", err)
@@ -611,10 +609,7 @@ func (s *CheckoutService) waitForPostgresReady(port int, timeout time.Duration) 
 	return fmt.Errorf("timeout waiting for PostgreSQL to become ready after %v", timeout)
 }
 
-func (s *CheckoutService) discoverCheckoutFromOS(cloneName string) (*CheckoutInfo, error) {
-	zfsConfig := &ZFSConfig{
-		ParentDataset: s.config.ZFSParentDataset,
-	}
+func (s *CheckoutService) discoverCheckoutFromOS(zfsConfig *ZFSConfig, cloneName string) (*CheckoutInfo, error) {
 	cloneDataset := zfsConfig.CloneDataset(cloneName)
 
 	// Check if ZFS clone exists

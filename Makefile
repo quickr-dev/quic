@@ -24,7 +24,7 @@ vm-rebuild-agent:
 
 e2e-agent: vm-rebuild-agent
 	# multipass exec quic-e2e -- sudo --login --user=quic bash -c "cd /var/lib/quic/quic && go test ./e2e/agent -v -run TestQuicdInit -count=1"
-	multipass exec quic-e2e -- sudo su - quic -s /bin/bash -c "cd /var/lib/quic/quic && go test ./e2e/agent -v -run TestQuicdInit -count=1" 2>&1
+	multipass exec quic-e2e -- sudo su - quic -s /bin/bash -c "cd /var/lib/quic/quic && go test ./e2e/agent -v -run 'TestQuicdInit|TestCheckoutFlow' -count=1" 2>&1
 	$(MAKE) vm-restore
 
 e2e-cli: vm-rebuild-agent
