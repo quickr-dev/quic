@@ -69,11 +69,6 @@ func (s *CheckoutService) CreateCheckout(ctx context.Context, cloneName string, 
 		UpdatedAt:     now,
 	}
 
-	// Set permissions first
-	if err := s.setPostgresPermissions(clonePath); err != nil {
-		return nil, fmt.Errorf("setting permissions: %w", err)
-	}
-
 	// Prepare clone for startup (remove standby config, reset WAL, configure access)
 	if err := s.prepareCloneForStartup(clonePath); err != nil {
 		return nil, fmt.Errorf("preparing clone for startup: %w", err)

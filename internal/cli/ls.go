@@ -22,6 +22,12 @@ var lsCmd = &cobra.Command{
 			return fmt.Errorf("loading config: %w", err)
 		}
 
+		// Get restore name from flag or config
+		restoreName, _ := cmd.Flags().GetString("restore")
+		if restoreName == "" {
+			restoreName = cfg.SelectedRestore
+		}
+
 		client, _, cleanup, err := getQuicClient()
 		if err != nil {
 			return err
@@ -32,7 +38,9 @@ var lsCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(authCtx, 10*time.Second)
 		defer cancel()
 
-		req := &pb.ListCheckoutsRequest{}
+		req := &pb.ListCheckoutsRequest{
+			RestoreName: restoreName,
+		}
 
 		resp, err := client.ListCheckouts(ctx, req)
 		if err != nil {
@@ -59,4 +67,8 @@ var lsCmd = &cobra.Command{
 
 		return nil
 	},
+}
+
+func init() {
+	lsCmd.Flags().String("restore", "", "Name of the restore template to list checkouts from (optional - lists all if not specified)")
 }

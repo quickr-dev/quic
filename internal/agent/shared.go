@@ -46,13 +46,6 @@ func (s *CheckoutService) closeFirewallPort(port int) error {
 	return cmd.Run()
 }
 
-// PostgreSQL utilities
-func (s *CheckoutService) setPostgresPermissions(path string) error {
-	// Permissions already set during cloud-init restore process
-	// ZFS clones inherit permissions from parent dataset
-	return nil
-}
-
 func (s *CheckoutService) ExecPostgresCommand(port int, database, sqlCommand string) (string, error) {
 	psqlCmd := "/usr/lib/postgresql/16/bin/psql"
 	socketDir := "/var/run/postgresql"
@@ -124,4 +117,19 @@ func getInt(m map[string]interface{}, key string) int {
 		}
 	}
 	return 0
+}
+
+// GetRestoreNameFromCheckout derives the restore name from a checkout's clone path
+// Expected clone path format: /opt/quic/RESTORE_NAME/CLONE_NAME
+func (c *CheckoutInfo) GetRestoreName() string {
+	if c.ClonePath == "" {
+		return ""
+	}
+	
+	parts := strings.Split(strings.TrimPrefix(c.ClonePath, "/"), "/")
+	if len(parts) >= 3 && parts[0] == "opt" && parts[1] == "quic" {
+		return parts[2] // Third part is the restore name (after "opt/quic")
+	}
+	
+	return ""
 }

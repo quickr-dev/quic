@@ -8,15 +8,29 @@ import (
 )
 
 // ListCheckouts discovers and returns information about all existing checkouts
-func (s *CheckoutService) ListCheckouts(ctx context.Context) ([]*CheckoutInfo, error) {
+// If restoreName is provided, only returns checkouts from that specific restore
+func (s *CheckoutService) ListCheckouts(ctx context.Context, restoreName string) ([]*CheckoutInfo, error) {
 	zfsConfig := &ZFSConfig{
 		ParentDataset: s.config.ZFSParentDataset,
 	}
 
-	// List all datasets recursively under the parent
-	cmd := exec.Command("sudo", "zfs", "list", "-H", "-o", "name", "-r", zfsConfig.ParentDataset)
+	var searchDataset string
+	if restoreName != "" {
+		// If specific restore name provided, search only within that restore
+		searchDataset = zfsConfig.ParentDataset + "/" + restoreName
+	} else {
+		// If no restore name provided, search all restores
+		searchDataset = zfsConfig.ParentDataset
+	}
+
+	// List all datasets recursively under the search dataset
+	cmd := exec.Command("sudo", "zfs", "list", "-H", "-o", "name", "-r", searchDataset)
 	output, err := cmd.Output()
 	if err != nil {
+		// If the specific restore doesn't exist, return empty list instead of error
+		if restoreName != "" {
+			return []*CheckoutInfo{}, nil
+		}
 		return nil, fmt.Errorf("listing ZFS datasets: %w", err)
 	}
 
@@ -25,8 +39,8 @@ func (s *CheckoutService) ListCheckouts(ctx context.Context) ([]*CheckoutInfo, e
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if line == "" || line == zfsConfig.ParentDataset {
-			continue // Skip empty lines and parent dataset
+		if line == "" || line == searchDataset {
+			continue // Skip empty lines and search dataset itself
 		}
 
 		// Skip the _restore datasets
@@ -41,20 +55,20 @@ func (s *CheckoutService) ListCheckouts(ctx context.Context) ([]*CheckoutInfo, e
 			continue // Invalid format - need at least tank/restore/clone
 		}
 
-		restoreName := parts[len(parts)-2] // Second to last part is the restore name
-		cloneName := parts[len(parts)-1]   // Last part is the clone name
+		datasetRestoreName := parts[len(parts)-2] // Second to last part is the restore name
+		cloneName := parts[len(parts)-1]         // Last part is the clone name
 
 		// Create ZFS config with the restore name for discovery
 		cloneZfsConfig := &ZFSConfig{
 			ParentDataset: s.config.ZFSParentDataset,
-			RestoreName:   restoreName,
+			RestoreName:   datasetRestoreName,
 		}
 
 		// Try to get checkout info for this clone
 		checkout, err := s.discoverCheckoutFromOS(cloneZfsConfig, cloneName)
 		if err != nil {
 			// Log the error but continue with other checkouts
-			fmt.Printf("Warning: failed to load checkout info for %s/%s: %v\n", restoreName, cloneName, err)
+			fmt.Printf("Warning: failed to load checkout info for %s/%s: %v\n", datasetRestoreName, cloneName, err)
 			continue
 		}
 

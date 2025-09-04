@@ -80,7 +80,7 @@ func (s *QuicServer) ListCheckouts(ctx context.Context, req *pb.ListCheckoutsReq
 	log.Printf("User %s listing checkouts", user)
 
 	// Call the agent service to list checkouts
-	checkouts, err := s.agentService.ListCheckouts(ctx)
+	checkouts, err := s.agentService.ListCheckouts(ctx, req.RestoreName)
 	if err != nil {
 		log.Printf("User %s failed to list checkouts: %v", user, err)
 		return nil, fmt.Errorf("agent ListCheckouts failed: %w", err)

@@ -19,16 +19,9 @@ const (
 	createdBy    = "username"
 )
 
-var sharedRestoreResult *agent.InitResult
-var sharedCheckoutService *agent.CheckoutService
-
 func createRestore(t *testing.T) (*agent.CheckoutService, *agent.InitResult) {
-	if sharedRestoreResult != nil && sharedCheckoutService != nil {
-		return sharedCheckoutService, sharedRestoreResult
-	}
-
-	// Create a unique dirname for the shared restore
-	testDirname := fmt.Sprintf("shared-restore-%d", time.Now().Unix())
+	// Create a unique dirname for this restore
+	testDirname := fmt.Sprintf("test-restore-%d", time.Now().UnixNano())
 
 	// Create checkout service with test config
 	config := &agent.CheckoutConfig{
@@ -47,12 +40,8 @@ func createRestore(t *testing.T) (*agent.CheckoutService, *agent.InitResult) {
 	}
 
 	result, err := service.PerformInit(initConfig)
-	require.NoError(t, err, "Shared restore init should succeed")
+	require.NoError(t, err, "Restore init should succeed")
 	require.NotNil(t, result)
-
-	// Store for reuse
-	sharedCheckoutService = service
-	sharedRestoreResult = result
 
 	return service, result
 }
