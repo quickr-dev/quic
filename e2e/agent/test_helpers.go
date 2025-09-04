@@ -141,3 +141,10 @@ func assertCloneInstanceRunning(t *testing.T, clonePath string) {
 	pgrepPid := strings.TrimSpace(string(pgrepOutput))
 	require.Equal(t, pid, pgrepPid, "PID from postmaster.pid should match pgrep result for clone path")
 }
+
+func getUFWStatus(t *testing.T) string {
+	cmd := exec.Command("sudo", "ufw", "status")
+	output, err := cmd.Output()
+	require.NoError(t, err, "Should be able to get UFW status")
+	return string(output)
+}

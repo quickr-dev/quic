@@ -221,13 +221,22 @@ func TestCheckoutFlow(t *testing.T) {
 	})
 
 	t.Run("ConfigureFirewall", func(t *testing.T) {
-		// Test opening firewall port for external access
-		t.Skip("Not yet implemented")
-	})
+		cloneName := generateCloneName()
 
-	t.Run("VerifyCheckoutConnectivity", func(t *testing.T) {
-		// Test that we can connect to the checkout database externally
-		t.Skip("Not yet implemented")
+		ufwBefore := getUFWStatus(t)
+
+		// Create checkout (gets available port dynamically)
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		require.NoError(t, err, "CreateCheckout should succeed")
+
+		ufwAfter := getUFWStatus(t)
+
+		// Verify firewall rule was not present before checkout
+		portStr := fmt.Sprintf("%d/tcp", checkoutResult.Port)
+		require.NotContains(t, ufwBefore, portStr, "UFW should not contain port %d before checkout", checkoutResult.Port)
+
+		// Verify firewall rule was added for the checkout port
+		require.Contains(t, ufwAfter, portStr, "UFW should contain port %d after checkout", checkoutResult.Port)
 	})
 
 	t.Run("DuplicateCheckoutReturnsExisting", func(t *testing.T) {
