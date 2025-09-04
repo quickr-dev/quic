@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,10 +54,8 @@ func runQuicdInit(t *testing.T) (*agent.CheckoutService, *agent.InitResult) {
 func TestCheckoutFlow(t *testing.T) {
 	// Setup shared restore dataset for all tests
 	service, restoreResult := runQuicdInit(t)
-	_ = service
-	_ = restoreResult
 
-	t.Run("CreatesZFSSnapshot", func(t *testing.T) {
+	t.Run("CreateZFSSnapshot", func(t *testing.T) {
 		cloneName := fmt.Sprintf("test-clone-%d", time.Now().Unix())
 		restoreDatasetName := fmt.Sprintf("tank/%s", restoreResult.Dirname)
 		snapshotName := fmt.Sprintf("%s@%s", restoreDatasetName, cloneName)
@@ -77,8 +76,34 @@ func TestCheckoutFlow(t *testing.T) {
 	})
 
 	t.Run("CreateZFSClone", func(t *testing.T) {
-		// Test creating a ZFS clone from snapshot
-		t.Skip("Not yet implemented")
+		cloneName := fmt.Sprintf("test-clone-%d", time.Now().Unix())
+		cloneDatasetName := fmt.Sprintf("tank/%s/%s", restoreResult.Dirname, cloneName)
+
+		// Verify clone doesn't exist before
+		cmd := exec.Command("sudo", "zfs", "list", "-H", "-o", "name", cloneDatasetName)
+		require.Error(t, cmd.Run(), "Clone dataset should not exist before creation")
+
+		// Create checkout (which internally creates snapshot and clone)
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		require.NoError(t, err, "CreateCheckout should succeed")
+		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
+
+		// Verify clone dataset was created
+		cmd = exec.Command("sudo", "zfs", "list", "-H", "-o", "name", cloneDatasetName)
+		err = cmd.Run()
+		require.NoError(t, err, "Clone dataset should exist after checkout creation")
+
+		// Verify clone has correct mountpoint
+		cmd = exec.Command("sudo", "zfs", "get", "-H", "-o", "value", "mountpoint", cloneDatasetName)
+		output, err := cmd.Output()
+		require.NoError(t, err, "Should be able to get clone mountpoint")
+		
+		mountpoint := strings.TrimSpace(string(output))
+		expectedMountpoint := fmt.Sprintf("/opt/quic/%s/%s", restoreResult.Dirname, cloneName)
+		require.Equal(t, expectedMountpoint, mountpoint, "Clone should have expected mountpoint")
+
+		// Verify clone path matches checkout result
+		require.Equal(t, expectedMountpoint, checkoutResult.ClonePath, "CheckoutResult ClonePath should match ZFS mountpoint")
 	})
 
 	t.Run("ConfigureCloneForCheckout", func(t *testing.T) {

@@ -14,9 +14,7 @@ import (
 )
 
 const (
-	testStanza   = "test-stanza"
-	testDatabase = "testdb"
-	quicdBinary  = "/usr/local/bin/quicd"
+	quicdBinary = "/usr/local/bin/quicd"
 )
 
 func generateRestoreName() string {

@@ -21,6 +21,11 @@ import (
 	pb "github.com/quickr-dev/quic/proto"
 )
 
+const (
+	testStanza   = "test-stanza"
+	testDatabase = "testdb"
+)
+
 // MultipassInfo represents the JSON structure returned by multipass info command
 type MultipassInfo struct {
 	Info map[string]struct {
