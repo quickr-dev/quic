@@ -181,6 +181,30 @@ func TestCheckoutFlow(t *testing.T) {
 		require.Equal(t, clonePath, pidData["dataDirectory"], "PostgreSQL should use the clone data directory")
 	})
 
+	t.Run("CloneConnectivitySpeed", func(t *testing.T) {
+		startTime := time.Now()
+
+		cloneName := generateCloneName()
+
+		// Create checkout
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		require.NoError(t, err, "CreateCheckout should succeed")
+		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
+
+		// Assert users can quickly use the cloned instance
+		recoveryOutput, err := service.ExecPostgresCommand(checkoutResult.Port, "postgres", "SELECT pg_is_in_recovery();")
+		require.NoError(t, err, "Error checking recovery status")
+		require.Contains(t, recoveryOutput, "f", "PostgreSQL should not be in recovery mode (pg_is_in_recovery should return 'f')")
+
+		// Make a real query to the cloned instance
+		usersOutput, err := service.ExecPostgresCommand(checkoutResult.Port, "testdb", "SELECT name FROM users ORDER BY name;")
+		require.NoError(t, err, "Should be able to query test data from restored database")
+		require.Equal(t, usersOutput, "  name   \n---------\n Alice\n Bob\n Charlie\n(3 rows)\n\n")
+
+		totalTime := time.Since(startTime)
+		require.Less(t, totalTime, 5*time.Second, "Branch should be ready within 5 seconds, took %v", totalTime)
+	})
+
 	t.Run("CreateAdminUser", func(t *testing.T) {
 		// Test creating admin user with random password
 		t.Skip("Not yet implemented")

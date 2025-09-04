@@ -200,7 +200,7 @@ func (s *CheckoutService) coordinatePostgreSQLBackup(restoreDataset, snapshotNam
 	}
 
 	// PostgreSQL is running - force checkpoint for consistency then take snapshot
-	if err := s.execPostgresCommand(port, "postgres", "CHECKPOINT;"); err != nil {
+	if _, err := s.ExecPostgresCommand(port, "postgres", "CHECKPOINT;"); err != nil {
 		return fmt.Errorf("forcing checkpoint: %w", err)
 	}
 
@@ -498,7 +498,8 @@ func (s *CheckoutService) setupAdminUser(checkout *CheckoutInfo) error {
 		GRANT ALL PRIVILEGES ON DATABASE postgres TO admin;
 	`, checkout.AdminPassword, checkout.AdminPassword)
 
-	return s.execPostgresCommand(checkout.Port, "postgres", sqlCommands)
+	_, err := s.ExecPostgresCommand(checkout.Port, "postgres", sqlCommands)
+	return err
 }
 
 func (s *CheckoutService) findAvailablePortFromOS() (int, error) {

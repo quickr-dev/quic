@@ -53,21 +53,21 @@ func (s *CheckoutService) setPostgresPermissions(path string) error {
 	return nil
 }
 
-func (s *CheckoutService) execPostgresCommand(port int, database, sqlCommand string) error {
+func (s *CheckoutService) ExecPostgresCommand(port int, database, sqlCommand string) (string, error) {
 	psqlCmd := "/usr/lib/postgresql/16/bin/psql"
 	socketDir := "/var/run/postgresql"
-	
+
 	cmd := exec.Command("sudo", "-u", "postgres", psqlCmd,
 		"-h", socketDir,
 		"-p", fmt.Sprintf("%d", port),
 		"-d", database,
 		"-c", sqlCommand)
-	
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("psql command failed: %w (output: %s)", err, string(output))
+		return "", fmt.Errorf("psql command failed: %w (output: %s)", err, string(output))
 	}
-	return nil
+	return string(output), nil
 }
 
 // Audit logging
