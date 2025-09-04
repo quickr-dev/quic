@@ -1,14 +1,11 @@
-package e2e
+package e2e_agent
 
 import (
 	"context"
 	"crypto/tls"
-	"database/sql"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"os/exec"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -62,15 +59,6 @@ func setupGRPCClient(t *testing.T) (pb.QuicServiceClient, context.Context, conte
 	client := pb.NewQuicServiceClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	return client, ctx, cancel
-}
-
-func randomString(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(b)
 }
 
 // VM command execution helpers
@@ -190,71 +178,6 @@ func getUFWStatus(t *testing.T) string {
 	output, err := execInVMSudo(t, "ufw", "status")
 	require.NoError(t, err, "Failed to get UFW status in VM")
 	return output
-}
-
-// Database connection helpers
-func assertAdminUserCanConnect(t *testing.T, port int, adminPassword string) {
-	// Build connection string using VM IP
-	vmIP := getVMIP(t)
-	connStr := fmt.Sprintf("postgres://admin:%s@%s:%d/postgres?sslmode=disable",
-		adminPassword, vmIP, port)
-
-	// Retry connection a few times as PostgreSQL might take a moment to be ready
-	var db *sql.DB
-	var err error
-
-	for i := 0; i < 10; i++ {
-		db, err = sql.Open("postgres", connStr)
-		if err == nil {
-			err = db.Ping()
-			if err == nil {
-				break
-			}
-			db.Close()
-		}
-		time.Sleep(1 * time.Second)
-	}
-
-	require.NoError(t, err, "Admin user should be able to connect to PostgreSQL on port %d", port)
-	require.NotNil(t, db, "Database connection should not be nil")
-
-	// Test that admin user has superuser privileges by creating a test table
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS test_admin_privileges (id serial primary key)")
-	assert.NoError(t, err, "Admin user should have CREATE TABLE privileges")
-
-	// Clean up
-	_, err = db.Exec("DROP TABLE IF EXISTS test_admin_privileges")
-	assert.NoError(t, err, "Admin user should have DROP TABLE privileges")
-
-	db.Close()
-}
-
-// Connection string parsing helpers
-func parseConnectionString(connStr string) (port int, adminPassword string, err error) {
-	// Format: postgres://admin:PASSWORD@HOST:PORT/postgres?sslmode=disable
-	// Using regex to handle URL encoding and special characters in passwords
-	parts := strings.Split(connStr, "@")
-	if len(parts) != 2 {
-		return 0, "", fmt.Errorf("invalid connection string format")
-	}
-
-	// Extract user:password from first part
-	userPart := strings.TrimPrefix(parts[0], "postgres://admin:")
-	adminPassword = userPart
-
-	// Extract host:port from second part
-	hostPortPart := strings.Split(parts[1], "/")[0]
-	hostPortParts := strings.Split(hostPortPart, ":")
-	if len(hostPortParts) != 2 {
-		return 0, "", fmt.Errorf("invalid host:port format")
-	}
-
-	port, err = strconv.Atoi(hostPortParts[1])
-	if err != nil {
-		return 0, "", fmt.Errorf("invalid port: %w", err)
-	}
-
-	return port, adminPassword, nil
 }
 
 // Directory assertion helpers (execute in VM)
