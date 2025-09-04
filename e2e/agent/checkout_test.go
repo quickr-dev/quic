@@ -162,7 +162,7 @@ func TestCheckoutFlow(t *testing.T) {
 	t.Run("StartPostgreSQLService", func(t *testing.T) {
 		cloneName := generateCloneName()
 
-		// Create checkout which should automatically start PostgreSQL service
+		// Create checkout
 		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
 		require.NoError(t, err, "CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
@@ -183,7 +183,6 @@ func TestCheckoutFlow(t *testing.T) {
 
 	t.Run("CloneConnectivitySpeed", func(t *testing.T) {
 		startTime := time.Now()
-
 		cloneName := generateCloneName()
 
 		// Create checkout
@@ -206,8 +205,19 @@ func TestCheckoutFlow(t *testing.T) {
 	})
 
 	t.Run("CreateAdminUser", func(t *testing.T) {
-		// Test creating admin user with random password
-		t.Skip("Not yet implemented")
+		cloneName := generateCloneName()
+
+		// Create checkout
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		require.NoError(t, err, "CreateCheckout should succeed")
+
+		connStr := checkoutResult.ConnectionString("localhost")
+		require.Contains(t, connStr, "postgresql://admin:", "Connection string should contain admin user")
+
+		// Test that admin is super user
+		output, err := service.ExecPostgresCommand(checkoutResult.Port, "postgres", "SELECT rolname, rolsuper FROM pg_roles WHERE rolname = 'admin';")
+		require.NoError(t, err, "Should be able to query admin user privileges")
+		require.Equal(t, output, " rolname | rolsuper \n---------+----------\n admin   | t\n(1 row)\n\n", "Admin should be super user")
 	})
 
 	t.Run("ConfigureFirewall", func(t *testing.T) {
