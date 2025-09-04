@@ -239,9 +239,20 @@ func TestCheckoutFlow(t *testing.T) {
 		require.Contains(t, ufwAfter, portStr, "UFW should contain port %d after checkout", checkoutResult.Port)
 	})
 
-	t.Run("DuplicateCheckoutReturnsExisting", func(t *testing.T) {
-		// Test that creating the same checkout twice returns the existing one
-		t.Skip("Not yet implemented")
+	t.Run("DuplicateCheckoutReturnsExistingOne", func(t *testing.T) {
+		cloneName := generateCloneName()
+
+		// Create first checkout
+		checkoutResult1, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		require.NoError(t, err, "First CreateCheckout should succeed")
+		require.NotNil(t, checkoutResult1, "First CreateCheckout should return result")
+
+		// Create second checkout with same name
+		checkoutResult2, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		require.NoError(t, err, "Second CreateCheckout should succeed")
+		require.NotNil(t, checkoutResult2, "Second CreateCheckout should return result")
+
+		require.Equal(t, checkoutResult1, checkoutResult2, "Results should be identical")
 	})
 
 	t.Run("InvalidCloneNameRejected", func(t *testing.T) {

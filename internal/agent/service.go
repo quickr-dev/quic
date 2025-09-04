@@ -8,10 +8,8 @@ import (
 )
 
 type CheckoutService struct {
-	config *CheckoutConfig
-	// Sync checkout flow
-	checkoutMutex sync.Mutex
-	// e.g. deployment restarting quicd
+	config         *CheckoutConfig
+	checkoutMutex  sync.Mutex
 	shutdownSignal atomic.Bool
 }
 

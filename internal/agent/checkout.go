@@ -14,7 +14,6 @@ import (
 )
 
 func (s *CheckoutService) CreateCheckout(ctx context.Context, cloneName string, restoreName string, createdBy string) (*CheckoutInfo, error) {
-	// Try to acquire lock while respecting shutdown state
 	if !s.tryLockWithShutdownCheck() {
 		return nil, fmt.Errorf("service restarting, please retry in a few seconds")
 	}
@@ -59,14 +58,15 @@ func (s *CheckoutService) CreateCheckout(ctx context.Context, cloneName string, 
 	}
 
 	// Store metadata alongside the clone
+	now := time.Now().Truncate(time.Second)
 	checkout := &CheckoutInfo{
 		CloneName:     cloneName,
 		Port:          port,
 		ClonePath:     clonePath,
 		AdminPassword: adminPassword,
 		CreatedBy:     createdBy,
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 
 	// Set permissions first
