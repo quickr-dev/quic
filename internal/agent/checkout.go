@@ -182,30 +182,6 @@ func (s *CheckoutService) getCloneMountpoint(config *ZFSConfig, cloneDataset, cl
 	return mountpoint, nil
 }
 
-// coordinatePostgreSQLBackup ensures data consistency when taking ZFS snapshots of running PostgreSQL instances.
-//
-// Overview:
-// This function coordinates with PostgreSQL's backup system to create crash-consistent ZFS snapshots.
-// It uses pg_start_backup()/pg_stop_backup() to ensure all dirty buffers are written to disk and
-// WAL continuity is maintained, allowing clones to perform proper crash recovery on startup.
-//
-// Alternatives Considered:
-//
-// 1. Manual CHECKPOINT only (original approach):
-//   - Issue: Doesn't prevent WAL recycling, uncommitted transactions may become "committed"
-//   - Tradeoff: Faster (~1s) but risk of subtle data corruption in clones
-//
-// 2. pg_resetwal -f (previous approach):
-//   - Issue: Bypasses crash recovery, can leave partial transactions committed
-//   - Tradeoff: Instant startup but high corruption risk for applications
-//
-// 3. Remove standby.signal only:
-//   - Issue: Longer recovery time (10-60s) depending on WAL backlog
-//   - Tradeoff: Safe but unpredictable startup time
-//
-// 4. pg_start_backup/pg_stop_backup (chosen approach):
-//   - Benefits: Guaranteed consistency, predictable ~15-20s recovery time, designed for this use case
-//   - Tradeoff: Slightly longer snapshot creation (~2-3s) but eliminates corruption risk entirely
 func (s *CheckoutService) coordinatePostgreSQLBackup(restoreDataset, snapshotName string) error {
 	// Get the mount point of the source dataset to find the PostgreSQL data directory
 	cmd := exec.Command("zfs", "get", "-H", "-o", "value", "mountpoint", restoreDataset)
@@ -223,41 +199,13 @@ func (s *CheckoutService) coordinatePostgreSQLBackup(restoreDataset, snapshotNam
 		return cmd.Run()
 	}
 
-	// PostgreSQL is running, coordinate with pg_start_backup/pg_stop_backup
-	psqlCmd := filepath.Join(s.config.PostgresBinPath, "psql")
-	socketDir := "/var/run/postgresql"
-
-	// Start backup coordination
-	startCmd := exec.Command(psqlCmd,
-		"-h", socketDir,
-		"-p", fmt.Sprintf("%d", port),
-		"-d", "postgres",
-		"-c", fmt.Sprintf("SELECT pg_start_backup('%s', false, false);", snapshotName))
-
-	if output, err := startCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("running pg_start_backup: %w (output: %s)", err, output)
+	// PostgreSQL is running - force checkpoint for consistency then take snapshot
+	if err := s.execPostgresCommand(port, "postgres", "CHECKPOINT;"); err != nil {
+		return fmt.Errorf("forcing checkpoint: %w", err)
 	}
 
-	// Take ZFS snapshot while backup is coordinated
-	snapshotCmd := exec.Command("sudo", "zfs", "snapshot", snapshotName)
-	snapshotErr := snapshotCmd.Run()
-
-	// Always call pg_stop_backup, even if snapshot failed
-	stopCmd := exec.Command(psqlCmd,
-		"-h", socketDir,
-		"-p", fmt.Sprintf("%d", port),
-		"-d", "postgres",
-		"-c", "SELECT pg_stop_backup();")
-
-	if output, err := stopCmd.CombinedOutput(); err != nil {
-		// If snapshot succeeded but stop failed, that's still an error
-		if snapshotErr == nil {
-			return fmt.Errorf("running pg_stop_backup: %w (output: %s)", err, output)
-		}
-		// If both failed, report the snapshot error (more critical)
-	}
-
-	return snapshotErr
+	cmd = exec.Command("sudo", "zfs", "snapshot", snapshotName)
+	return cmd.Run()
 }
 
 func (s *CheckoutService) prepareCloneForStartup(clonePath string) error {
@@ -285,9 +233,15 @@ func (s *CheckoutService) prepareCloneForStartup(clonePath string) error {
 		return fmt.Errorf("removing postmaster.pid: %w", err)
 	}
 
+	// Reset WAL for fast startup (skips recovery entirely)
+	resetCmd := exec.Command("sudo", "-u", "postgres", "/usr/lib/postgresql/16/bin/pg_resetwal", "-f", clonePath)
+	if err := resetCmd.Run(); err != nil {
+		return fmt.Errorf("resetting WAL for fast startup: %w", err)
+	}
+
 	// Clean postgresql.auto.conf and configure for clone
 	autoConfPath := filepath.Join(clonePath, "postgresql.auto.conf")
-	autoConfig := `# Clone instance - recovery and archiving disabled
+	autoConfig := `# Clone instance
 archive_mode = 'off'
 restore_command = ''
 `
@@ -435,8 +389,8 @@ After=network.target
 [Service]
 Type=forking
 User=postgres
-ExecStart=%s/pg_ctl start -D %s -o "--port=%d" -w -t 300
-ExecStop=%s/pg_ctl stop -D %s -m fast
+ExecStart=/usr/lib/postgresql/16/bin/pg_ctl start -D %s -o "--port=%d" -w -t 300
+ExecStop=/usr/lib/postgresql/16/bin/pg_ctl stop -D %s -m fast
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=mixed
 KillSignal=SIGINT
@@ -447,9 +401,7 @@ RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-`, checkout.CloneName,
-		s.config.PostgresBinPath, checkout.ClonePath, checkout.Port,
-		s.config.PostgresBinPath, checkout.ClonePath)
+`, checkout.CloneName, checkout.ClonePath, checkout.Port, checkout.ClonePath)
 
 	// Write service file using sudo tee (safer than bash)
 	cmd := exec.Command("sudo", "tee", serviceFilePath)
@@ -535,7 +487,6 @@ func (s *CheckoutService) removeSystemdService(checkout *CheckoutInfo) error {
 
 func (s *CheckoutService) setupAdminUser(checkout *CheckoutInfo) error {
 	// Connect to the database and set up admin user using Unix socket (more reliable for postgres user)
-	psqlCmd := filepath.Join(s.config.PostgresBinPath, "psql")
 	sqlCommands := fmt.Sprintf(`
 		-- Create admin role if it doesn't exist
 		DO $$ BEGIN
@@ -548,15 +499,7 @@ func (s *CheckoutService) setupAdminUser(checkout *CheckoutInfo) error {
 		GRANT ALL PRIVILEGES ON DATABASE postgres TO admin;
 	`, checkout.AdminPassword, checkout.AdminPassword)
 
-	// Use Unix socket connection by specifying socket directory and port
-	socketDir := "/var/run/postgresql"
-	cmd := exec.Command(psqlCmd,
-		"-h", socketDir,
-		"-p", fmt.Sprintf("%d", checkout.Port),
-		"-d", "postgres",
-		"-c", sqlCommands)
-
-	return cmd.Run()
+	return s.execPostgresCommand(checkout.Port, "postgres", sqlCommands)
 }
 
 func (s *CheckoutService) findAvailablePortFromOS() (int, error) {
@@ -597,7 +540,7 @@ func (s *CheckoutService) waitForPostgresReady(port int, timeout time.Duration) 
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
-		pgIsReadyCmd := filepath.Join(s.config.PostgresBinPath, "pg_isready")
+		pgIsReadyCmd := "/usr/lib/postgresql/16/bin/pg_isready"
 		cmd := exec.Command(pgIsReadyCmd, "-h", "localhost", "-p", fmt.Sprintf("%d", port))
 		if err := cmd.Run(); err == nil {
 			return nil // PostgreSQL is ready to accept connections
