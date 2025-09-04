@@ -3,12 +3,17 @@ package e2e_agent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/quickr-dev/quic/internal/agent"
+)
+
+const (
+	createdBy = "username"
 )
 
 var sharedRestoreResult *agent.InitResult
@@ -62,7 +67,7 @@ func TestCheckoutFlow(t *testing.T) {
 		verifyZFSDatasetExists(t, snapshotName, false)
 
 		// create checkout
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
@@ -78,7 +83,7 @@ func TestCheckoutFlow(t *testing.T) {
 		verifyZFSDatasetExists(t, cloneDatasetName, false)
 
 		// Create checkout (which internally creates snapshot and clone)
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
@@ -115,7 +120,7 @@ func TestCheckoutFlow(t *testing.T) {
 		verifyFileExists(t, restorePath+"/recovery.conf", true)
 
 		// Create checkout
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
@@ -163,7 +168,7 @@ func TestCheckoutFlow(t *testing.T) {
 		cloneName := generateCloneName()
 
 		// Create checkout
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
@@ -186,7 +191,7 @@ func TestCheckoutFlow(t *testing.T) {
 		cloneName := generateCloneName()
 
 		// Create checkout
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
@@ -208,7 +213,7 @@ func TestCheckoutFlow(t *testing.T) {
 		cloneName := generateCloneName()
 
 		// Create checkout
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 
 		connStr := checkoutResult.ConnectionString("localhost")
@@ -226,7 +231,7 @@ func TestCheckoutFlow(t *testing.T) {
 		ufwBefore := getUFWStatus(t)
 
 		// Create checkout (gets available port dynamically)
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 
 		ufwAfter := getUFWStatus(t)
@@ -243,20 +248,38 @@ func TestCheckoutFlow(t *testing.T) {
 		cloneName := generateCloneName()
 
 		// Create first checkout
-		checkoutResult1, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		checkoutResult1, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "First CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult1, "First CreateCheckout should return result")
 
 		// Create second checkout with same name
-		checkoutResult2, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		checkoutResult2, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "Second CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult2, "Second CreateCheckout should return result")
 
 		require.Equal(t, checkoutResult1, checkoutResult2, "Results should be identical")
 	})
 
-	t.Run("InvalidCloneNameRejected", func(t *testing.T) {
-		// Test that invalid clone names (like "_restore") are rejected
-		t.Skip("Not yet implemented")
+	t.Run("InvalidCloneName", func(t *testing.T) {
+		// Test reserved name "_restore"
+		_, err := service.CreateCheckout(context.Background(), "_restore", restoreResult.Dirname, createdBy)
+		require.Error(t, err, "Should reject reserved name '_restore'")
+		require.Equal(t, "invalid clone name: clone name '_restore' is reserved", err.Error())
+
+		// Test invalid characters
+		_, err = service.CreateCheckout(context.Background(), "test@invalid", restoreResult.Dirname, createdBy)
+		require.Error(t, err, "Should reject names with invalid characters")
+		require.Equal(t, "invalid clone name: clone name must contain only letters, numbers, underscore, and dash", err.Error())
+
+		// Test empty name
+		_, err = service.CreateCheckout(context.Background(), "", restoreResult.Dirname, createdBy)
+		require.Error(t, err, "Should reject empty name")
+		require.Equal(t, "invalid clone name: clone name must be between 1 and 50 characters", err.Error())
+
+		// Test name too long (over 50 characters)
+		longName := strings.Repeat("a", 51)
+		_, err = service.CreateCheckout(context.Background(), longName, restoreResult.Dirname, createdBy)
+		require.Error(t, err, "Should reject names longer than 50 characters")
+		require.Equal(t, "invalid clone name: clone name must be between 1 and 50 characters", err.Error())
 	})
 }
