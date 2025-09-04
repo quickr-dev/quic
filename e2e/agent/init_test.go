@@ -95,30 +95,23 @@ func TestQuicdInit(t *testing.T) {
 
 		// Check key PostgreSQL configuration files created by pgbackrest --type=standby
 
-		// 1. standby.signal - Should exist (indicates standby mode)
+		// standby.signal - Should exist
 		standbySignalPath := filepath.Join(restoreMount, "standby.signal")
 		require.FileExists(t, standbySignalPath, "standby.signal should exist in restored database")
 
-		// 2. postgresql.auto.conf - Should contain recovery settings
+		// postgresql.auto.conf - Should contain recovery settings
 		autoConfPath := filepath.Join(restoreMount, "postgresql.auto.conf")
 		if _, err := os.Stat(autoConfPath); err == nil {
 			content, err := os.ReadFile(autoConfPath)
 			require.NoError(t, err)
 			contentStr := string(content)
-			t.Logf("postgresql.auto.conf contents:\n%s", contentStr)
 
 			// Should NOT contain our clone-specific modifications
 			require.NotContains(t, contentStr, "# Clone instance - recovery disabled",
 				"postgresql.auto.conf should not contain clone-specific configuration")
 		}
 
-		// 3. recovery.signal - May exist for older PostgreSQL versions
-		recoverySignalPath := filepath.Join(restoreMount, "recovery.signal")
-		if _, err := os.Stat(recoverySignalPath); err == nil {
-			t.Logf("recovery.signal found at %s", recoverySignalPath)
-		}
-
-		// 4. postgresql.conf - Check main configuration for archive settings
+		// postgresql.conf - Check main configuration for archive settings
 		postgresqlConfPath := filepath.Join(restoreMount, "postgresql.conf")
 		if _, err := os.Stat(postgresqlConfPath); err == nil {
 			content, err := os.ReadFile(postgresqlConfPath)
