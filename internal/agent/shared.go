@@ -76,7 +76,6 @@ func (s *CheckoutService) auditEvent(eventType string, details interface{}) erro
 		"timestamp":  time.Now().UTC().Format(time.RFC3339),
 		"event_type": eventType,
 		"details":    details,
-		"created_by": "system",
 	}
 
 	logJSON, err := json.Marshal(logEntry)
@@ -98,6 +97,14 @@ func (s *CheckoutService) auditEvent(eventType string, details interface{}) erro
 	}
 
 	return nil
+}
+
+func ParseAuditEntry(line string) (map[string]interface{}, error) {
+	var entry map[string]interface{}
+	if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		return nil, fmt.Errorf("unmarshaling audit entry: %w", err)
+	}
+	return entry, nil
 }
 
 // Helper functions for JSON parsing

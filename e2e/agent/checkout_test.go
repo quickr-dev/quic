@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -313,5 +314,49 @@ func TestCheckoutFlow(t *testing.T) {
 		_, err = service.CreateCheckout(context.Background(), longName, restoreResult.Dirname, createdBy)
 		require.Error(t, err, "Should reject names longer than 50 characters")
 		require.Equal(t, "invalid clone name: clone name must be between 1 and 50 characters", err.Error())
+	})
+
+	t.Run("AuditLogEntry", func(t *testing.T) {
+		cloneName := generateCloneName()
+		auditLogPath := "/var/log/quic/audit.log"
+
+		// Get initial audit log size (if exists)
+		var initialSize int64
+		if info, err := os.Stat(auditLogPath); err == nil {
+			initialSize = info.Size()
+		}
+
+		// Create checkout
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		require.NoError(t, err, "CreateCheckout should succeed")
+
+		// Verify audit log was updated
+		info, err := os.Stat(auditLogPath)
+		require.NoError(t, err, "Audit log file should exist")
+		require.Greater(t, info.Size(), initialSize, "Audit log should have grown")
+
+		// Read the last line of the audit log
+		cmd := exec.Command("tail", "-n", "1", auditLogPath)
+		output, err := cmd.Output()
+		require.NoError(t, err, "Should be able to read last line of audit log")
+		lastLine := strings.TrimSpace(string(output))
+		require.NotEmpty(t, lastLine, "Should have read a log entry")
+
+		// Parse audit log entry
+		auditEntry, err := agent.ParseAuditEntry(lastLine)
+		require.NoError(t, err, "Should be able to parse audit log entry")
+
+		// Verify audit entry structure
+		require.Equal(t, "checkout_create", auditEntry["event_type"], "Event type should be checkout_create")
+		require.Contains(t, auditEntry, "timestamp", "Should have timestamp")
+		require.Contains(t, auditEntry, "details", "Should have details")
+
+		// Verify details contain checkout information
+		details, ok := auditEntry["details"].(map[string]interface{})
+		require.True(t, ok, "Details should be an object")
+		require.Equal(t, cloneName, details["clone_name"], "Details should contain clone name")
+		require.Equal(t, float64(checkoutResult.Port), details["port"], "Details should contain port")
+		require.Equal(t, checkoutResult.ClonePath, details["clone_path"], "Details should contain clone path")
+		require.Equal(t, createdBy, details["created_by"], "Details should contain created_by")
 	})
 }
