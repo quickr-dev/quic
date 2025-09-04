@@ -58,7 +58,7 @@ func (s *CheckoutService) CreateCheckout(ctx context.Context, cloneName string, 
 	}
 
 	// Store metadata alongside the clone
-	now := time.Now().Truncate(time.Second)
+	now := time.Now().UTC().Truncate(time.Second)
 	checkout := &CheckoutInfo{
 		CloneName:     cloneName,
 		Port:          port,
@@ -619,13 +619,13 @@ func (s *CheckoutService) loadCheckoutMetadata(clonePath, cloneName string) (*Ch
 
 	if createdAtStr := getString(metadata, "created_at"); createdAtStr != "" {
 		if t, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
-			checkout.CreatedAt = t
+			checkout.CreatedAt = t.UTC()
 		}
 	}
 
 	if updatedAtStr := getString(metadata, "updated_at"); updatedAtStr != "" {
 		if t, err := time.Parse(time.RFC3339, updatedAtStr); err == nil {
-			checkout.UpdatedAt = t
+			checkout.UpdatedAt = t.UTC()
 		}
 	}
 

@@ -62,7 +62,7 @@ func getRestorePath(dirname string) string {
 }
 
 func generateCloneName() string {
-	return fmt.Sprintf("test-clone-%d", time.Now().Unix())
+	return fmt.Sprintf("test-clone-%d", time.Now().UnixNano())
 }
 
 func verifyZFSDatasetExists(t *testing.T, datasetName string, shouldExist bool) {

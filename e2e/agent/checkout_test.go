@@ -274,19 +274,17 @@ func TestCheckoutFlow(t *testing.T) {
 		auditLogPath := "/var/log/quic/audit.log"
 
 		// Get initial audit log size (if exists)
-		var initialSize int64
-		if info, err := os.Stat(auditLogPath); err == nil {
-			initialSize = info.Size()
-		}
+		infoBefore, err := os.Stat(auditLogPath)
+		require.NoError(t, err, "Audit log file should exist")
 
 		// Create checkout
 		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 
 		// Verify audit log was updated
-		info, err := os.Stat(auditLogPath)
+		infoAfter, err := os.Stat(auditLogPath)
 		require.NoError(t, err, "Audit log file should exist")
-		require.Greater(t, info.Size(), initialSize, "Audit log should have grown")
+		require.Greater(t, infoAfter.Size(), infoBefore.Size(), "Audit log should have grown")
 
 		// Read the last line of the audit log
 		cmd := exec.Command("tail", "-n", "1", auditLogPath)
