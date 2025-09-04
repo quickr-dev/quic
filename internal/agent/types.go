@@ -29,7 +29,7 @@ type ZFSConfig struct {
 }
 
 func (z *ZFSConfig) RestoreDataset() string {
-	return z.ParentDataset + "/" + z.RestoreName + "/_restore"
+	return z.ParentDataset + "/" + z.RestoreName
 }
 
 func (z *ZFSConfig) CloneDataset(cloneName string) string {
