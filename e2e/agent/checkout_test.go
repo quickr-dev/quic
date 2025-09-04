@@ -2,7 +2,10 @@ package e2e_agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -242,6 +245,35 @@ func TestCheckoutFlow(t *testing.T) {
 
 		// Verify firewall rule was added for the checkout port
 		require.Contains(t, ufwAfter, portStr, "UFW should contain port %d after checkout", checkoutResult.Port)
+	})
+
+	t.Run("SaveMetadataFile", func(t *testing.T) {
+		cloneName := generateCloneName()
+
+		// Create checkout
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		require.NoError(t, err, "CreateCheckout should succeed")
+
+		// Verify metadata file exists
+		metadataPath := filepath.Join(checkoutResult.ClonePath, ".quic-meta.json")
+		require.FileExists(t, metadataPath, "Metadata file should exist")
+
+		// Read and verify metadata content
+		metadataBytes, err := os.ReadFile(metadataPath)
+		require.NoError(t, err, "Should be able to read metadata file")
+
+		var metadata map[string]interface{}
+		require.NoError(t, json.Unmarshal(metadataBytes, &metadata), "Should be able to parse metadata JSON")
+
+		// Verify all expected fields are present
+		require.Equal(t, cloneName, metadata["clone_name"], "clone_name should match")
+		require.Equal(t, float64(checkoutResult.Port), metadata["port"], "port should match")
+		require.Equal(t, checkoutResult.ClonePath, metadata["clone_path"], "clone_path should match")
+		require.Equal(t, checkoutResult.AdminPassword, metadata["admin_password"], "admin_password should not be empty")
+		require.Equal(t, createdBy, metadata["created_by"], "created_by should match")
+		require.Equal(t, checkoutResult.CreatedAt.UTC().Format(time.RFC3339), metadata["created_at"])
+		require.Equal(t, checkoutResult.UpdatedAt.UTC().Format(time.RFC3339), metadata["updated_at"])
+
 	})
 
 	t.Run("DuplicateCheckoutReturnsExistingOne", func(t *testing.T) {

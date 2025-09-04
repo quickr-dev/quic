@@ -347,8 +347,8 @@ func (s *CheckoutService) saveCheckoutMetadata(checkout *CheckoutInfo) error {
 		"clone_path":     checkout.ClonePath,
 		"admin_password": checkout.AdminPassword,
 		"created_by":     checkout.CreatedBy,
-		"created_at":     checkout.CreatedAt.Format(time.RFC3339),
-		"updated_at":     checkout.UpdatedAt.Format(time.RFC3339),
+		"created_at":     checkout.CreatedAt.UTC().Format(time.RFC3339),
+		"updated_at":     checkout.UpdatedAt.UTC().Format(time.RFC3339),
 	}
 
 	data, err := json.MarshalIndent(metadata, "", "  ")
