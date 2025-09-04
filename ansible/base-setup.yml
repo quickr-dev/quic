@@ -112,12 +112,12 @@
     - name: Set certificate file permissions
       file:
         path: "{{ item.path }}"
-        owner: quic
+        owner: "{{ item.owner }}"
         group: postgres
         mode: "{{ item.mode }}"
       loop:
-        - { path: "{{ cert_path }}/server.crt", mode: "0644" }
-        - { path: "{{ cert_path }}/server.key", mode: "0640" }
+        - { path: "{{ cert_path }}/server.crt", owner: "postgres", mode: "0644" }
+        - { path: "{{ cert_path }}/server.key", owner: "root", mode: "0640" }
 
     # ===============================================
     # ZFS Encryption Setup

@@ -255,11 +255,6 @@ restore_command = ''
 		return fmt.Errorf("updating postgresql.conf: %w", err)
 	}
 
-	// Configure TLS certificates for the clone
-	if err := s.configureTLSForClone(clonePath); err != nil {
-		return fmt.Errorf("configuring TLS for clone: %w", err)
-	}
-
 	// Configure pg_hba.conf to allow admin user access
 	pgHbaPath := filepath.Join(clonePath, "pg_hba.conf")
 	hbaConfig := `# Allow local connections for testing
@@ -311,8 +306,8 @@ func (s *CheckoutService) updatePostgreSQLConf(confPath string) error {
 		"listen_addresses":                "'*'",
 		"shared_preload_libraries":        "''",
 		"ssl":                             "on",
-		"ssl_cert_file":                   "'server.crt'",
-		"ssl_key_file":                    "'server.key'",
+		"ssl_cert_file":                   "'/etc/quic/certs/server.crt'",
+		"ssl_key_file":                    "'/etc/quic/certs/server.key'",
 		"ssl_ca_file":                     "''",
 		"autovacuum":                      "off",
 	}
@@ -431,8 +426,18 @@ func (s *CheckoutService) startSystemdService(checkout *CheckoutInfo) error {
 
 	// Start the service
 	cmd := exec.Command("sudo", "systemctl", "start", serviceName)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("starting systemd service: %w", err)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// Get service status for debugging
+		statusCmd := exec.Command("sudo", "systemctl", "status", serviceName)
+		statusOutput, _ := statusCmd.CombinedOutput()
+
+		// Get journalctl logs for more details
+		logsCmd := exec.Command("sudo", "journalctl", "-u", serviceName, "--no-pager", "-n", "20")
+		logsOutput, _ := logsCmd.CombinedOutput()
+
+		return fmt.Errorf("starting systemd service: %w (start output: %s) (status: %s) (logs: %s)",
+			err, string(output), string(statusOutput), string(logsOutput))
 	}
 
 	// Wait for PostgreSQL to be ready
@@ -652,36 +657,6 @@ func (s *CheckoutService) extractPortFromPostmasterPid(dataDir string) (int, boo
 	}
 
 	return 0, false // Couldn't parse port
-}
-
-func (s *CheckoutService) configureTLSForClone(clonePath string) error {
-	// Copy TLS certificates from the system location to the clone data directory
-	certPath := "/etc/quic/certs"
-
-	// Copy server certificate
-	serverCertSrc := filepath.Join(certPath, "server.crt")
-	serverCertDst := filepath.Join(clonePath, "server.crt")
-	if err := s.copyFile(serverCertSrc, serverCertDst); err != nil {
-		return fmt.Errorf("copying server certificate: %w", err)
-	}
-
-	// Copy server private key
-	serverKeySrc := filepath.Join(certPath, "server.key")
-	serverKeyDst := filepath.Join(clonePath, "server.key")
-	if err := s.copyFile(serverKeySrc, serverKeyDst); err != nil {
-		return fmt.Errorf("copying server private key: %w", err)
-	}
-
-	// Set proper permissions for PostgreSQL
-	if err := os.Chmod(serverCertDst, 0644); err != nil {
-		return fmt.Errorf("setting certificate permissions: %w", err)
-	}
-
-	if err := os.Chmod(serverKeyDst, 0600); err != nil {
-		return fmt.Errorf("setting private key permissions: %w", err)
-	}
-
-	return nil
 }
 
 func (s *CheckoutService) copyFile(src, dst string) error {
