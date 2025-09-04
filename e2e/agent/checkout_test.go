@@ -96,6 +96,24 @@ func TestCheckoutFlow(t *testing.T) {
 	t.Run("ConfigureCloneForCheckout", func(t *testing.T) {
 		cloneName := generateCloneName()
 
+		// Verify pre-checkout state in the restore dataset
+		restorePath := getRestorePath(restoreResult.Dirname)
+
+		// Verify postmaster.pid points to restore directory before checkout
+		restorePidData := parsePostmasterPid(t, restorePath)
+		require.Equal(t, restorePath, restorePidData["dataDirectory"], "postmaster.pid should initially point to restore directory")
+		restorePort := restorePidData["port"].(int)
+		
+		// Verify restore port is > 5000
+		require.Greater(t, restorePort, 5000, "restore port should be greater than 5000")
+
+		// Ensure files exist before checkout
+		verifyFileExists(t, restorePath+"/standby.signal", true)
+		touch(t, restorePath+"/recovery.signal")
+		touch(t, restorePath+"/recovery.conf")
+		verifyFileExists(t, restorePath+"/recovery.signal", true)
+		verifyFileExists(t, restorePath+"/recovery.conf", true)
+
 		// Create checkout
 		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
 		require.NoError(t, err, "CreateCheckout should succeed")
@@ -111,7 +129,11 @@ func TestCheckoutFlow(t *testing.T) {
 		// Verify postmaster.pid exists and contains correct information for this clone
 		pidData := parsePostmasterPid(t, clonePath)
 		require.Equal(t, clonePath, pidData["dataDirectory"], "postmaster.pid should contain correct data directory")
-		require.Equal(t, fmt.Sprintf("%d", checkoutResult.Port), pidData["port"], "postmaster.pid should contain correct port")
+		clonePort := pidData["port"].(int)
+		require.Equal(t, checkoutResult.Port, clonePort, "postmaster.pid should contain correct port")
+		
+		// Verify clone port is different from restore port
+		require.NotEqual(t, restorePort, clonePort, "clone port should be different from restore port")
 
 		// Verify postgresql.auto.conf is configured for clone
 		autoConfPath := clonePath + "/postgresql.auto.conf"

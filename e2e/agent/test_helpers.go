@@ -3,6 +3,7 @@ package e2e_agent
 import (
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,10 @@ const (
 	testStanza   = "test-stanza"
 	testDatabase = "testdb"
 )
+
+func getRestorePath(dirname string) string {
+	return fmt.Sprintf("/opt/quic/%s/_restore", dirname)
+}
 
 func generateCloneName() string {
 	return fmt.Sprintf("test-clone-%d", time.Now().Unix())
@@ -74,7 +79,7 @@ func verifyFileContains(t *testing.T, filePath, expectedContent, description str
 	require.Contains(t, content, expectedContent, "%s: %s", filePath, description)
 }
 
-func parsePostmasterPid(t *testing.T, clonePath string) map[string]string {
+func parsePostmasterPid(t *testing.T, clonePath string) map[string]interface{} {
 	postmasterPidPath := clonePath + "/postmaster.pid"
 	verifyFileExists(t, postmasterPidPath, true)
 
@@ -82,7 +87,7 @@ func parsePostmasterPid(t *testing.T, clonePath string) map[string]string {
 	lines := strings.Split(strings.TrimSpace(content), "\n")
 	require.GreaterOrEqual(t, len(lines), 4, "postmaster.pid should have at least 4 lines")
 
-	result := make(map[string]string)
+	result := make(map[string]interface{})
 	if len(lines) >= 1 {
 		result["pid"] = strings.TrimSpace(lines[0])
 	}
@@ -93,8 +98,16 @@ func parsePostmasterPid(t *testing.T, clonePath string) map[string]string {
 		result["startTime"] = strings.TrimSpace(lines[2])
 	}
 	if len(lines) >= 4 {
-		result["port"] = strings.TrimSpace(lines[3])
+		portStr := strings.TrimSpace(lines[3])
+		port, err := strconv.Atoi(portStr)
+		require.NoError(t, err, "port should be a valid integer")
+		result["port"] = port
 	}
 
 	return result
+}
+
+func touch(t *testing.T, filePath string) {
+	cmd := exec.Command("sudo", "touch", filePath)
+	require.NoError(t, cmd.Run(), "Should be able to create empty file %s", filePath)
 }
