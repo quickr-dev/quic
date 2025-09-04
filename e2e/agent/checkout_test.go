@@ -16,51 +16,9 @@ import (
 	"github.com/quickr-dev/quic/internal/agent"
 )
 
-const (
-	createdBy = "username"
-)
-
-var sharedRestoreResult *agent.InitResult
-var sharedCheckoutService *agent.CheckoutService
-
-func runQuicdInit(t *testing.T) (*agent.CheckoutService, *agent.InitResult) {
-	if sharedRestoreResult != nil && sharedCheckoutService != nil {
-		return sharedCheckoutService, sharedRestoreResult
-	}
-
-	// Create a unique dirname for the shared restore
-	testDirname := fmt.Sprintf("shared-restore-%d", time.Now().Unix())
-
-	// Create checkout service with test config
-	config := &agent.CheckoutConfig{
-		ZFSParentDataset: "tank",
-		PostgresBinPath:  "/usr/lib/postgresql/16/bin",
-		StartPort:        5433,
-		EndPort:          6433,
-	}
-	service := agent.NewCheckoutService(config)
-
-	// Perform init operation to create restore dataset
-	initConfig := &agent.InitConfig{
-		Stanza:   testStanza,
-		Database: testDatabase,
-		Dirname:  testDirname,
-	}
-
-	result, err := service.PerformInit(initConfig)
-	require.NoError(t, err, "Shared restore init should succeed")
-	require.NotNil(t, result)
-
-	// Store for reuse
-	sharedCheckoutService = service
-	sharedRestoreResult = result
-
-	return service, result
-}
-
 func TestCheckoutFlow(t *testing.T) {
 	// Setup shared restore dataset for all tests
-	service, restoreResult := runQuicdInit(t)
+	service, restoreResult := createRestore(t)
 
 	t.Run("CreateZFSSnapshot", func(t *testing.T) {
 		cloneName := generateCloneName()
@@ -180,7 +138,7 @@ func TestCheckoutFlow(t *testing.T) {
 
 		// Verify systemd service was created and is running
 		serviceName := fmt.Sprintf("quic-clone-%s", cloneName)
-		assertSystemdServiceRunning(t, serviceName)
+		assertSystemdServiceRunning(t, serviceName, true)
 
 		// Verify postmaster.pid exists and contains running process
 		assertCloneInstanceRunning(t, clonePath)
@@ -238,14 +196,9 @@ func TestCheckoutFlow(t *testing.T) {
 		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 
-		ufwAfter := getUFWStatus(t)
-
-		// Verify firewall rule was not present before checkout
-		portStr := fmt.Sprintf("%d/tcp", checkoutResult.Port)
-		require.NotContains(t, ufwBefore, portStr, "UFW should not contain port %d before checkout", checkoutResult.Port)
-
-		// Verify firewall rule was added for the checkout port
-		require.Contains(t, ufwAfter, portStr, "UFW should contain port %d after checkout", checkoutResult.Port)
+		// Verify firewall rule was not present before checkout and was added after
+		assertUFWTcp(t, checkoutResult.Port, false, ufwBefore)
+		assertUFWTcp(t, checkoutResult.Port, true)
 	})
 
 	t.Run("SaveMetadataFile", func(t *testing.T) {

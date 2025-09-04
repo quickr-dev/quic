@@ -1,192 +1,158 @@
-package e2e
+package e2e_agent
 
 import (
+	"context"
 	"fmt"
-	"path/filepath"
+	"os/exec"
+	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pb "github.com/quickr-dev/quic/proto"
+	"github.com/quickr-dev/quic/internal/agent"
 )
 
 func TestDeleteFlow(t *testing.T) {
-	// Setup gRPC client
-	client, ctx, cancel := setupGRPCClient(t)
-	defer cancel()
+	// Setup shared restore dataset for all tests
+	service, restoreResult := createRestore(t)
 
-	t.Run("DeleteExistingCheckout", func(t *testing.T) {
-		cloneName := "delete-test-" + randomString(6)
+	t.Run("DeleteZFSSnapshot", func(t *testing.T) {
+		cloneName := generateCloneName()
+		restoreDatasetName := fmt.Sprintf("tank/%s", restoreResult.Dirname)
+		snapshotName := fmt.Sprintf("%s@%s", restoreDatasetName, cloneName)
 
-		// Verify restore dataset exists
-		require.True(t, datasetExistsInVM(t, "tank/_restore"),
-			"Restore dataset must exist for e2e tests")
+		// Create a checkout (creates snapshot and clone)
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		require.NoError(t, err, "CreateCheckout should succeed")
+		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
-		// 1. Create a checkout first
-		resp, err := client.CreateCheckout(ctx, &pb.CreateCheckoutRequest{
-			CloneName: cloneName,
-		})
-		require.NoError(t, err)
-		require.NotEmpty(t, resp.ConnectionString)
+		// Verify snapshot exists before deletion
+		verifyZFSDatasetExists(t, snapshotName, true)
 
-		// Extract checkout info from connection string for validation
-		connStr := resp.ConnectionString
-		assert.Contains(t, connStr, "postgres://admin:")
-		assert.Contains(t, connStr, "@localhost:")
-		assert.Contains(t, connStr, "/postgres?sslmode=disable")
+		// Delete the checkout
+		deleted, err := service.DeleteCheckout(context.Background(), cloneName, restoreResult.Dirname)
+		require.NoError(t, err, "DeleteCheckout should succeed")
+		require.True(t, deleted, "DeleteCheckout should return true when checkout was deleted")
 
-		// Parse port from connection string for validation
-		port, _, err := parseConnectionString(connStr)
-		require.NoError(t, err, "Should be able to extract port from connection string")
+		// Verify snapshot no longer exists
+		verifyZFSDatasetExists(t, snapshotName, false)
+	})
 
-		// Capture state BEFORE deletion
-		cloneDataset := "tank/" + cloneName
-		snapshotName := "tank/_restore@" + cloneName
-		clonePath := "/tank/" + cloneName
-		metadataPath := filepath.Join(clonePath, ".quic-meta.json")
-		ufwStatusBefore := getUFWStatus(t)
+	t.Run("DeleteZFSClone", func(t *testing.T) {
+		cloneName := generateCloneName()
+		cloneDatasetName := fmt.Sprintf("tank/%s/%s", restoreResult.Dirname, cloneName)
 
-		// Verify checkout is properly set up
-		assert.True(t, datasetExistsInVM(t, cloneDataset), "Clone dataset should exist before delete")
-		assert.True(t, snapshotExistsInVM(t, snapshotName), "Snapshot should exist before delete")
-		assertDirExists(t, clonePath)
-		assertFileExists(t, metadataPath)
-		assertPostgresProcessRunning(t, clonePath)
-		assertPortInUse(t, port)
+		// Create a checkout (creates snapshot and clone)
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		require.NoError(t, err, "CreateCheckout should succeed")
+		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
-		// Verify UFW rule exists for the port
-		portStr := fmt.Sprintf("%d/tcp", port)
-		assert.Contains(t, ufwStatusBefore, portStr,
-			"UFW should contain rule for port %d before delete", port)
+		// Verify clone dataset exists before deletion
+		verifyZFSDatasetExists(t, cloneDatasetName, true)
 
-		// 2. Delete the checkout
-		deleteResp, err := client.DeleteCheckout(ctx, &pb.DeleteCheckoutRequest{
-			CloneName: cloneName,
-		})
-		require.NoError(t, err)
-		assert.True(t, deleteResp.Deleted, "Delete should return true for existing checkout")
+		// Delete the checkout
+		deleted, err := service.DeleteCheckout(context.Background(), cloneName, restoreResult.Dirname)
+		require.NoError(t, err, "DeleteCheckout should succeed")
+		require.True(t, deleted, "DeleteCheckout should return true when checkout was deleted")
 
-		// Capture state AFTER deletion
-		ufwStatusAfter := getUFWStatus(t)
+		// Verify clone dataset no longer exists
+		verifyZFSDatasetExists(t, cloneDatasetName, false)
+	})
 
-		// 3. Verify cleanup happened
-		// ZFS resources should be gone
-		assert.False(t, datasetExistsInVM(t, cloneDataset), "Clone dataset should not exist after delete")
-		assert.False(t, snapshotExistsInVM(t, snapshotName), "Snapshot should not exist after delete")
+	t.Run("RemoveSystemdService", func(t *testing.T) {
+		cloneName := generateCloneName()
+		serviceName := fmt.Sprintf("quic-clone-%s", cloneName)
 
-		// Directory should not be accessible (mountpoint gone)
-		assertDirNotExists(t, clonePath)
+		// Create a checkout (creates systemd service)
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		require.NoError(t, err, "CreateCheckout should succeed")
+		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
-		// Metadata file should be gone
-		assertFileNotExists(t, metadataPath)
+		// Verify systemd service is running and file exists
+		assertSystemdServiceRunning(t, serviceName, true)
+		verifySystemdFileExists(t, serviceName, true)
 
-		// PostgreSQL process should be stopped
-		assertPostgresProcessNotRunning(t, clonePath)
+		// Delete the checkout
+		deleted, err := service.DeleteCheckout(context.Background(), cloneName, restoreResult.Dirname)
+		require.NoError(t, err, "DeleteCheckout should succeed")
+		require.True(t, deleted, "DeleteCheckout should return true when checkout was deleted")
 
-		// Port should be free
-		assertPortNotInUse(t, port)
+		// Verify systemd service is not running and file was deleted
+		assertSystemdServiceRunning(t, serviceName, false)
+		verifySystemdFileExists(t, serviceName, false)
+	})
 
-		// UFW rule should be removed
-		assert.NotContains(t, ufwStatusAfter, portStr,
-			"UFW should not contain rule for port %d after delete", port)
+	t.Run("CloseFirewallPort", func(t *testing.T) {
+		cloneName := generateCloneName()
+
+		// Create a checkout (opens firewall port)
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		require.NoError(t, err, "CreateCheckout should succeed")
+		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
+
+		// Verify UFW contains rule for the port
+		assertUFWTcp(t, checkoutResult.Port, true)
+
+		// Delete the checkout
+		deleted, err := service.DeleteCheckout(context.Background(), cloneName, restoreResult.Dirname)
+		require.NoError(t, err, "DeleteCheckout should succeed")
+		require.True(t, deleted, "DeleteCheckout should return true when checkout was deleted")
+
+		// Verify UFW no longer contains rule for the port
+		assertUFWTcp(t, checkoutResult.Port, false)
+	})
+
+	t.Run("AuditLogEntry", func(t *testing.T) {
+		cloneName := generateCloneName()
+
+		// Create a checkout
+		_, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		require.NoError(t, err, "CreateCheckout should succeed")
+
+		// Delete the checkout
+		deleted, err := service.DeleteCheckout(context.Background(), cloneName, restoreResult.Dirname)
+		require.NoError(t, err, "DeleteCheckout should succeed")
+		require.True(t, deleted, "DeleteCheckout should return true when checkout was deleted")
+
+		// Read the last line of the audit log and verify it's a delete entry
+		cmd := exec.Command("tail", "-n", "1", "/var/log/quic/audit.log")
+		output, err := cmd.Output()
+		require.NoError(t, err, "Should be able to read last line of audit log")
+
+		auditEntry, err := agent.ParseAuditEntry(strings.TrimSpace(string(output)))
+		require.NoError(t, err, "Should be able to parse audit log entry")
+		require.Equal(t, "checkout_delete", auditEntry["event_type"], "Event type should be checkout_delete")
 	})
 
 	t.Run("DeleteNonExistentCheckout", func(t *testing.T) {
-		cloneName := "nonexistent-" + randomString(6)
+		nonExistentCloneName := generateCloneName()
 
-		// Try to delete a checkout that doesn't exist
-		deleteResp, err := client.DeleteCheckout(ctx, &pb.DeleteCheckoutRequest{
-			CloneName: cloneName,
-		})
-		require.NoError(t, err)
-		assert.False(t, deleteResp.Deleted, "Delete should return false for non-existent checkout")
+		// Delete a non-existent checkout
+		deleted, err := service.DeleteCheckout(context.Background(), nonExistentCloneName, restoreResult.Dirname)
+		require.NoError(t, err, "DeleteCheckout should not return error for non-existent checkout")
+		require.False(t, deleted, "DeleteCheckout should return false when nothing was deleted")
 	})
 
-	t.Run("DeleteIdempotency", func(t *testing.T) {
-		cloneName := "idempotent-test-" + randomString(6)
+	t.Run("InvalidCloneName", func(t *testing.T) {
+		// Test reserved name "_restore"
+		_, err := service.DeleteCheckout(context.Background(), "_restore", restoreResult.Dirname)
+		require.Error(t, err, "Should reject reserved name '_restore'")
+		require.Equal(t, "invalid clone name: clone name '_restore' is reserved", err.Error())
 
-		// Create a checkout
-		resp, err := client.CreateCheckout(ctx, &pb.CreateCheckoutRequest{
-			CloneName: cloneName,
-		})
-		require.NoError(t, err)
-		require.NotEmpty(t, resp.ConnectionString)
+		// Test invalid characters
+		_, err = service.DeleteCheckout(context.Background(), "test@invalid", restoreResult.Dirname)
+		require.Error(t, err, "Should reject names with invalid characters")
+		require.Equal(t, "invalid clone name: clone name must contain only letters, numbers, underscore, and dash", err.Error())
 
-		cloneDataset := "tank/" + cloneName
-		snapshotName := "tank/_restore@" + cloneName
+		// Test empty name
+		_, err = service.DeleteCheckout(context.Background(), "", restoreResult.Dirname)
+		require.Error(t, err, "Should reject empty name")
+		require.Equal(t, "invalid clone name: clone name must be between 1 and 50 characters", err.Error())
 
-		// Verify it exists
-		assert.True(t, datasetExistsInVM(t, cloneDataset), "Clone dataset should exist")
-		assert.True(t, snapshotExistsInVM(t, snapshotName), "Snapshot should exist")
-
-		// Delete first time
-		deleteResp1, err := client.DeleteCheckout(ctx, &pb.DeleteCheckoutRequest{
-			CloneName: cloneName,
-		})
-		require.NoError(t, err)
-		assert.True(t, deleteResp1.Deleted, "First delete should return true")
-
-		// Verify it's gone
-		assert.False(t, datasetExistsInVM(t, cloneDataset), "Clone dataset should not exist after first delete")
-		assert.False(t, snapshotExistsInVM(t, snapshotName), "Snapshot should not exist after first delete")
-
-		// Delete second time (idempotency test)
-		deleteResp2, err := client.DeleteCheckout(ctx, &pb.DeleteCheckoutRequest{
-			CloneName: cloneName,
-		})
-		require.NoError(t, err)
-		assert.False(t, deleteResp2.Deleted, "Second delete should return false (nothing to delete)")
-
-		// Still should be gone
-		assert.False(t, datasetExistsInVM(t, cloneDataset), "Clone dataset should still not exist after second delete")
-		assert.False(t, snapshotExistsInVM(t, snapshotName), "Snapshot should still not exist after second delete")
-	})
-
-	t.Run("DeleteWithInvalidDatabase", func(t *testing.T) {
-		cloneName := "invalid-db-test-" + randomString(6)
-
-		// Try to delete a checkout that doesn't exist
-		deleteResp, err := client.DeleteCheckout(ctx, &pb.DeleteCheckoutRequest{
-			CloneName: cloneName,
-		})
-		require.NoError(t, err)
-		assert.False(t, deleteResp.Deleted, "Delete should return false for non-existent checkout")
-	})
-
-	t.Run("DeletePartialCleanupResilience", func(t *testing.T) {
-		cloneName := "partial-cleanup-" + randomString(6)
-
-		// Create a checkout
-		resp, err := client.CreateCheckout(ctx, &pb.CreateCheckoutRequest{
-			CloneName: cloneName,
-		})
-		require.NoError(t, err)
-		require.NotEmpty(t, resp.ConnectionString)
-
-		cloneDataset := "tank/" + cloneName
-		snapshotName := "tank/_restore@" + cloneName
-		clonePath := "/tank/" + cloneName
-		metadataPath := filepath.Join(clonePath, ".quic-meta.json")
-
-		// Verify it exists
-		assert.True(t, datasetExistsInVM(t, cloneDataset), "Clone dataset should exist")
-		assert.True(t, snapshotExistsInVM(t, snapshotName), "Snapshot should exist")
-		assertFileExists(t, metadataPath)
-
-		// Manually remove metadata file to simulate partial state
-		execInVMSudo(t, "rm", "-f", metadataPath)
-		assertFileNotExists(t, metadataPath)
-
-		// Delete should still work even with missing metadata
-		deleteResp, err := client.DeleteCheckout(ctx, &pb.DeleteCheckoutRequest{
-			CloneName: cloneName,
-		})
-		require.NoError(t, err)
-		assert.True(t, deleteResp.Deleted, "Delete should handle missing metadata gracefully")
-
-		// Everything should still be cleaned up
-		assert.False(t, datasetExistsInVM(t, cloneDataset), "Clone dataset should not exist after delete")
-		assert.False(t, snapshotExistsInVM(t, snapshotName), "Snapshot should not exist after delete")
+		// Test name too long (over 50 characters)
+		longName := strings.Repeat("a", 51)
+		_, err = service.DeleteCheckout(context.Background(), longName, restoreResult.Dirname)
+		require.Error(t, err, "Should reject names longer than 50 characters")
+		require.Equal(t, "invalid clone name: clone name must be between 1 and 50 characters", err.Error())
 	})
 }

@@ -9,12 +9,53 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/quickr-dev/quic/internal/agent"
 )
 
 const (
 	testStanza   = "test-stanza"
 	testDatabase = "testdb"
+	createdBy    = "username"
 )
+
+var sharedRestoreResult *agent.InitResult
+var sharedCheckoutService *agent.CheckoutService
+
+func createRestore(t *testing.T) (*agent.CheckoutService, *agent.InitResult) {
+	if sharedRestoreResult != nil && sharedCheckoutService != nil {
+		return sharedCheckoutService, sharedRestoreResult
+	}
+
+	// Create a unique dirname for the shared restore
+	testDirname := fmt.Sprintf("shared-restore-%d", time.Now().Unix())
+
+	// Create checkout service with test config
+	config := &agent.CheckoutConfig{
+		ZFSParentDataset: "tank",
+		PostgresBinPath:  "/usr/lib/postgresql/16/bin",
+		StartPort:        5433,
+		EndPort:          6433,
+	}
+	service := agent.NewCheckoutService(config)
+
+	// Perform init operation to create restore dataset
+	initConfig := &agent.InitConfig{
+		Stanza:   testStanza,
+		Database: testDatabase,
+		Dirname:  testDirname,
+	}
+
+	result, err := service.PerformInit(initConfig)
+	require.NoError(t, err, "Shared restore init should succeed")
+	require.NotNil(t, result)
+
+	// Store for reuse
+	sharedCheckoutService = service
+	sharedRestoreResult = result
+
+	return service, result
+}
 
 func getRestorePath(dirname string) string {
 	return fmt.Sprintf("/opt/quic/%s/_restore", dirname)
@@ -112,13 +153,27 @@ func touch(t *testing.T, filePath string) {
 	require.NoError(t, cmd.Run(), "Should be able to create empty file %s", filePath)
 }
 
-func assertSystemdServiceRunning(t *testing.T, serviceName string) {
+func assertSystemdServiceRunning(t *testing.T, serviceName string, shouldBeRunning bool) {
 	cmd := exec.Command("sudo", "systemctl", "is-active", serviceName)
-	output, err := cmd.Output()
-	require.NoError(t, err, "Service %s should be running", serviceName)
+	output, _ := cmd.Output() // We don't check error here as it can return non-zero for inactive services
 
 	status := strings.TrimSpace(string(output))
-	require.Equal(t, "active", status, "Service %s should be active", serviceName)
+	if shouldBeRunning {
+		require.Equal(t, "active", status, "Service %s should be active", serviceName)
+	} else {
+		require.NotEqual(t, "active", status, "Service %s should not be active", serviceName)
+	}
+}
+
+func verifySystemdFileExists(t *testing.T, serviceName string, shouldExist bool) {
+	serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
+	cmd := exec.Command("sudo", "test", "-f", serviceFilePath)
+	err := cmd.Run()
+	if shouldExist {
+		require.NoError(t, err, "Systemd service file %s should exist", serviceFilePath)
+	} else {
+		require.Error(t, err, "Systemd service file %s should not exist", serviceFilePath)
+	}
 }
 
 func assertCloneInstanceRunning(t *testing.T, clonePath string) {
@@ -147,4 +202,20 @@ func getUFWStatus(t *testing.T) string {
 	output, err := cmd.Output()
 	require.NoError(t, err, "Should be able to get UFW status")
 	return string(output)
+}
+
+func assertUFWTcp(t *testing.T, port int, shouldExist bool, ufwStatus ...string) {
+	var status string
+	if len(ufwStatus) > 0 {
+		status = ufwStatus[0]
+	} else {
+		status = getUFWStatus(t)
+	}
+
+	portStr := fmt.Sprintf("%d/tcp", port)
+	if shouldExist {
+		require.Contains(t, status, portStr, "UFW should contain rule for port %d", port)
+	} else {
+		require.NotContains(t, status, portStr, "UFW should not contain rule for port %d", port)
+	}
 }

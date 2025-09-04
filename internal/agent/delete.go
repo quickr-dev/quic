@@ -41,8 +41,6 @@ func (s *CheckoutService) DeleteCheckout(ctx context.Context, cloneName string, 
 		}
 	}
 
-	// Note: metadata file cleanup is handled automatically by ZFS clone destruction
-
 	// Remove ZFS clone
 	cloneDataset := zfsConfig.CloneDataset(cloneName)
 	if s.datasetExists(cloneDataset) {
