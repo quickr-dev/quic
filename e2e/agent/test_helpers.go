@@ -111,3 +111,33 @@ func touch(t *testing.T, filePath string) {
 	cmd := exec.Command("sudo", "touch", filePath)
 	require.NoError(t, cmd.Run(), "Should be able to create empty file %s", filePath)
 }
+
+func assertSystemdServiceRunning(t *testing.T, serviceName string) {
+	cmd := exec.Command("sudo", "systemctl", "is-active", serviceName)
+	output, err := cmd.Output()
+	require.NoError(t, err, "Service %s should be running", serviceName)
+
+	status := strings.TrimSpace(string(output))
+	require.Equal(t, "active", status, "Service %s should be active", serviceName)
+}
+
+func assertCloneInstanceRunning(t *testing.T, clonePath string) {
+	pidData := parsePostmasterPid(t, clonePath)
+	pid := pidData["pid"].(string)
+
+	// Verify the PID from postmaster.pid is running
+	cmd := exec.Command("sudo", "ps", "-p", pid, "-o", "comm=")
+	output, err := cmd.Output()
+	require.NoError(t, err, "PostgreSQL process should be running with PID %s", pid)
+
+	processName := strings.TrimSpace(string(output))
+	require.Equal(t, "postgres", processName, "Process should be postgres")
+
+	// Cross-verify using pgrep to find PostgreSQL process for this specific clone path
+	cmd = exec.Command("pgrep", "-f", clonePath)
+	pgrepOutput, err := cmd.Output()
+	require.NoError(t, err, "Should find PostgreSQL process for clone path %s", clonePath)
+
+	pgrepPid := strings.TrimSpace(string(pgrepOutput))
+	require.Equal(t, pid, pgrepPid, "PID from postmaster.pid should match pgrep result for clone path")
+}

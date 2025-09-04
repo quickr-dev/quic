@@ -103,7 +103,7 @@ func TestCheckoutFlow(t *testing.T) {
 		restorePidData := parsePostmasterPid(t, restorePath)
 		require.Equal(t, restorePath, restorePidData["dataDirectory"], "postmaster.pid should initially point to restore directory")
 		restorePort := restorePidData["port"].(int)
-		
+
 		// Verify restore port is > 5000
 		require.Greater(t, restorePort, 5000, "restore port should be greater than 5000")
 
@@ -131,7 +131,7 @@ func TestCheckoutFlow(t *testing.T) {
 		require.Equal(t, clonePath, pidData["dataDirectory"], "postmaster.pid should contain correct data directory")
 		clonePort := pidData["port"].(int)
 		require.Equal(t, checkoutResult.Port, clonePort, "postmaster.pid should contain correct port")
-		
+
 		// Verify clone port is different from restore port
 		require.NotEqual(t, restorePort, clonePort, "clone port should be different from restore port")
 
@@ -160,8 +160,25 @@ func TestCheckoutFlow(t *testing.T) {
 	})
 
 	t.Run("StartPostgreSQLService", func(t *testing.T) {
-		// Test starting PostgreSQL service on clone
-		t.Skip("Not yet implemented")
+		cloneName := generateCloneName()
+
+		// Create checkout which should automatically start PostgreSQL service
+		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, "e2e-test")
+		require.NoError(t, err, "CreateCheckout should succeed")
+		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
+
+		clonePath := checkoutResult.ClonePath
+
+		// Verify systemd service was created and is running
+		serviceName := fmt.Sprintf("quic-clone-%s", cloneName)
+		assertSystemdServiceRunning(t, serviceName)
+
+		// Verify postmaster.pid exists and contains running process
+		assertCloneInstanceRunning(t, clonePath)
+
+		// Verify PostgreSQL process is bound to correct data directory
+		pidData := parsePostmasterPid(t, clonePath)
+		require.Equal(t, clonePath, pidData["dataDirectory"], "PostgreSQL should use the clone data directory")
 	})
 
 	t.Run("CreateAdminUser", func(t *testing.T) {
