@@ -35,7 +35,7 @@ type MultipassInfo struct {
 
 // getVMIP retrieves the IP address of the test VM
 func getVMIP(t *testing.T) string {
-	cmd := exec.Command("multipass", "info", "quic-e2e-base", "--format", "json")
+	cmd := exec.Command("multipass", "info", "quic-e2e", "--format", "json")
 	output, err := cmd.Output()
 	require.NoError(t, err, "Failed to get VM info")
 
@@ -43,8 +43,8 @@ func getVMIP(t *testing.T) string {
 	err = json.Unmarshal(output, &info)
 	require.NoError(t, err, "Failed to parse VM info JSON")
 
-	vmInfo, exists := info.Info["quic-e2e-base"]
-	require.True(t, exists, "VM quic-e2e-base not found")
+	vmInfo, exists := info.Info["quic-e2e"]
+	require.True(t, exists, "VM quic-e2e not found")
 	require.NotEmpty(t, vmInfo.IPv4, "VM has no IPv4 address")
 
 	return vmInfo.IPv4[0]
@@ -75,7 +75,7 @@ func randomString(length int) string {
 
 // VM command execution helpers
 func execInVM(t *testing.T, cmd ...string) (string, error) {
-	args := append([]string{"exec", "quic-e2e-base", "--"}, cmd...)
+	args := append([]string{"exec", "quic-e2e", "--"}, cmd...)
 	multipassCmd := exec.Command("multipass", args...)
 	output, err := multipassCmd.Output()
 	return strings.TrimSpace(string(output)), err

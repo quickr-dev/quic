@@ -268,12 +268,6 @@ host    all             admin           0.0.0.0/0               md5
 		return fmt.Errorf("writing pg_hba.conf: %w", err)
 	}
 
-	// Ensure WAL directory has proper permissions
-	walDir := filepath.Join(clonePath, "pg_wal")
-	if err := os.MkdirAll(walDir, 0750); err != nil {
-		return fmt.Errorf("ensuring WAL directory exists: %w", err)
-	}
-
 	return nil
 }
 
