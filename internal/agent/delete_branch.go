@@ -31,15 +31,15 @@ func (s *AgentService) DeleteBranch(ctx context.Context, cloneName string, resto
 
 	// Close firewall port
 	if existing.Port > 0 {
-		if err := s.closeFirewallPort(existing.Port); err != nil {
+		if err := closeFirewallPort(existing.Port); err != nil {
 			log.Printf("Warning: failed to close firewall port %d: %v", existing.Port, err)
 		}
 	}
 
 	// Remove ZFS clone
 	cloneDataset := cloneDataset(restoreName, cloneName)
-	if s.datasetExists(cloneDataset) {
-		if err := s.destroyZFSClone(cloneDataset); err != nil {
+	if datasetExists(cloneDataset) {
+		if err := destroyZFSClone(cloneDataset); err != nil {
 			return false, fmt.Errorf("destroying ZFS clone: %w", err)
 		}
 	}
@@ -47,42 +47,42 @@ func (s *AgentService) DeleteBranch(ctx context.Context, cloneName string, resto
 	// Remove ZFS snapshot
 	restoreDataset := restoreDataset(restoreName)
 	snapshotName := restoreDataset + "@" + cloneName
-	if s.snapshotExists(snapshotName) {
-		if err := s.destroyZFSSnapshot(snapshotName); err != nil {
+	if snapshotExists(snapshotName) {
+		if err := destroyZFSSnapshot(snapshotName); err != nil {
 			return false, fmt.Errorf("destroying ZFS snapshot: %w", err)
 		}
 	}
 
 	// Audit log deletion
-	if err := s.auditEvent("checkout_delete", existing); err != nil {
+	if err := auditEvent("checkout_delete", existing); err != nil {
 		log.Printf("Warning: failed to audit checkout deletion: %v", err)
 	}
 
 	return true, nil
 }
 
-func (s *AgentService) destroyZFSClone(cloneDataset string) error {
+func destroyZFSClone(cloneDataset string) error {
 	cmd := exec.Command("sudo", "zfs", "destroy", cloneDataset)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("destroying ZFS clone %s: %w", cloneDataset, err)
 	}
 
 	// Audit ZFS clone destruction
-	s.auditEvent("zfs_clone_destroy", map[string]string{
+	auditEvent("zfs_clone_destroy", map[string]string{
 		"clone_dataset": cloneDataset,
 	})
 
 	return nil
 }
 
-func (s *AgentService) destroyZFSSnapshot(snapshotName string) error {
+func destroyZFSSnapshot(snapshotName string) error {
 	cmd := exec.Command("sudo", "zfs", "destroy", snapshotName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("destroying ZFS snapshot %s: %w", snapshotName, err)
 	}
 
 	// Audit ZFS snapshot destruction
-	s.auditEvent("zfs_snapshot_destroy", map[string]string{
+	auditEvent("zfs_snapshot_destroy", map[string]string{
 		"snapshot_name": snapshotName,
 	})
 

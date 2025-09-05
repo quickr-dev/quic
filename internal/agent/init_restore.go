@@ -28,7 +28,7 @@ type InitResult struct {
 }
 
 func (s *AgentService) InitRestore(config *InitConfig) (*InitResult, error) {
-	datasetPath := fmt.Sprintf("%s/%s", ZFSParentDataset, config.Dirname)
+	datasetPath := fmt.Sprintf("%s/%s", ZPool, config.Dirname)
 	mountPath := fmt.Sprintf("/opt/quic/%s/_restore", config.Dirname)
 
 	// Check if directory already exists
@@ -60,7 +60,7 @@ func (s *AgentService) InitRestore(config *InitConfig) (*InitResult, error) {
 
 	// Create systemd service
 	serviceName := fmt.Sprintf("postgresql-%s", config.Dirname)
-	if err := s.createPostgreSQLSystemdService(config.Dirname, mountPath, port, serviceName); err != nil {
+	if err := createPostgreSQLSystemdService(config.Dirname, mountPath, port, serviceName); err != nil {
 		return nil, fmt.Errorf("creating systemd service: %w", err)
 	}
 
@@ -88,12 +88,12 @@ func (s *AgentService) InitRestore(config *InitConfig) (*InitResult, error) {
 	}
 
 	// Start the PostgreSQL service
-	if err := s.startPostgreSQLService(serviceName); err != nil {
+	if err := startPostgreSQLService(serviceName); err != nil {
 		return nil, fmt.Errorf("starting PostgreSQL service: %w", err)
 	}
 
 	// Wait for PostgreSQL to be ready
-	if err := s.waitForPostgreSQLReady(port, 60*time.Second); err != nil {
+	if err := waitForPostgreSQLReady(port, 60*time.Second); err != nil {
 		return nil, fmt.Errorf("waiting for PostgreSQL to be ready: %w", err)
 	}
 
@@ -115,17 +115,17 @@ func findAvailablePortForInit() (int, error) {
 }
 
 // createPostgreSQLSystemdService creates a systemd service for the restored PostgreSQL instance
-func (s *AgentService) createPostgreSQLSystemdService(dirname, mountPath string, port int, serviceName string) error {
+func createPostgreSQLSystemdService(dirname, mountPath string, port int, serviceName string) error {
 	serviceContent := fmt.Sprintf(`[Unit]
-Description=PostgreSQL database server (restored instance - %s)
+Description=PostgreSQL database server (restored instance - %[1]s)
 Documentation=man:postgres(1)
 After=network.target zfs-unlock.service
 
 [Service]
 Type=forking
 User=postgres
-ExecStart=%s/pg_ctl start -D %s -o "--port=%d" -w -t 300
-ExecStop=%s/pg_ctl stop -D %s -m fast
+ExecStart=%[2]s start -D %[3]s -o "--port=%[4]d" -w -t 300
+ExecStop=%[2]s stop -D %[3]s -m fast
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=mixed
 KillSignal=SIGINT
@@ -136,7 +136,7 @@ RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
-`, dirname, pgBinPath(PostgreSQLVersion), mountPath, port, pgBinPath(PostgreSQLVersion), mountPath)
+`, dirname, pgCtlPath(PgVersion), mountPath, port)
 
 	servicePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
 
@@ -160,7 +160,7 @@ WantedBy=multi-user.target
 }
 
 // startPostgreSQLService starts the PostgreSQL systemd service
-func (s *AgentService) startPostgreSQLService(serviceName string) error {
+func startPostgreSQLService(serviceName string) error {
 	if err := exec.Command("sudo", "systemctl", "start", serviceName).Run(); err != nil {
 		return fmt.Errorf("starting systemd service %s: %w", serviceName, err)
 	}
@@ -168,7 +168,7 @@ func (s *AgentService) startPostgreSQLService(serviceName string) error {
 }
 
 // waitForPostgreSQLReady waits for PostgreSQL to accept connections
-func (s *AgentService) waitForPostgreSQLReady(port int, timeout time.Duration) error {
+func waitForPostgreSQLReady(port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {

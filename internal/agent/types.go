@@ -2,7 +2,6 @@ package agent
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -22,27 +21,17 @@ func (c *CheckoutInfo) ConnectionString(host string) string {
 	return fmt.Sprintf("postgresql://admin:%s@%s:%d/postgres", c.AdminPassword, host, c.Port)
 }
 
-// ValidateCloneName validates that a clone name is safe to use
-// Rules: only letters, numbers, underscore, dash; no "_restore"; lowercase
-func ValidateCloneName(name string) (string, error) {
-	// Convert to lowercase
-	name = strings.ToLower(name)
-
-	// Check length (reasonable limits)
-	if len(name) < 1 || len(name) > 50 {
-		return "", fmt.Errorf("clone name must be between 1 and 50 characters")
+// GetRestoreNameFromCheckout derives the restore name from a checkout's clone path
+// Expected clone path format: /opt/quic/RESTORE_NAME/CLONE_NAME
+func (c *CheckoutInfo) GetRestoreName() string {
+	if c.ClonePath == "" {
+		return ""
 	}
 
-	// Check for reserved name
-	if name == "_restore" {
-		return "", fmt.Errorf("clone name '_restore' is reserved")
+	parts := strings.Split(strings.TrimPrefix(c.ClonePath, "/"), "/")
+	if len(parts) >= 3 && parts[0] == "opt" && parts[1] == "quic" {
+		return parts[2] // Third part is the restore name (after "opt/quic")
 	}
 
-	// Check format: only alphanumeric, underscore, dash
-	validName := regexp.MustCompile(`^[a-z0-9_-]+$`)
-	if !validName.MatchString(name) {
-		return "", fmt.Errorf("clone name must contain only letters, numbers, underscore, and dash")
-	}
-
-	return name, nil
+	return ""
 }

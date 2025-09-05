@@ -35,7 +35,7 @@ func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, resto
 	}
 
 	// Find available port from OS
-	port, err := s.findAvailablePortFromOS()
+	port, err := findAvailablePortFromOS()
 	if err != nil {
 		return nil, fmt.Errorf("finding available port: %w", err)
 	}
@@ -65,12 +65,12 @@ func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, resto
 	}
 
 	// Prepare clone for startup (remove standby config, reset WAL, configure access)
-	if err := s.prepareCloneForStartup(clonePath); err != nil {
+	if err := prepareCloneForStartup(clonePath); err != nil {
 		return nil, fmt.Errorf("preparing clone for startup: %w", err)
 	}
 
 	// Save metadata to filesystem (after permissions are set)
-	if err := s.saveCheckoutMetadata(checkout); err != nil {
+	if err := saveCheckoutMetadata(checkout); err != nil {
 		return nil, fmt.Errorf("saving checkout metadata: %w", err)
 	}
 
@@ -85,7 +85,7 @@ func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, resto
 	}
 
 	// Open firewall port
-	if err := s.openFirewallPort(port); err != nil {
+	if err := openFirewallPort(port); err != nil {
 		return nil, fmt.Errorf("opening firewall port: %w", err)
 	}
 
@@ -95,7 +95,7 @@ func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, resto
 	}
 
 	// Audit checkout creation
-	if err := s.auditEvent("checkout_create", checkout); err != nil {
+	if err := auditEvent("checkout_create", checkout); err != nil {
 		return nil, fmt.Errorf("auditing checkout creation: %w", err)
 	}
 
@@ -108,19 +108,19 @@ func (s *AgentService) createZFSClone(restoreName, cloneName string) (string, er
 	snapshotName := restoreDataset + "@" + cloneName
 
 	// Check if restore dataset exists
-	if !s.datasetExists(restoreDataset) {
+	if !datasetExists(restoreDataset) {
 		return "", fmt.Errorf("restore dataset %s does not exist", restoreDataset)
 	}
 
 	// Check if snapshot already exists, if not create it
-	if !s.snapshotExists(snapshotName) {
+	if !snapshotExists(snapshotName) {
 		// Coordinate with PostgreSQL for consistent snapshot
 		if err := s.coordinatePostgreSQLBackup(restoreDataset, snapshotName); err != nil {
 			return "", fmt.Errorf("coordinating PostgreSQL backup: %w", err)
 		}
 
 		// Audit ZFS snapshot creation
-		s.auditEvent("zfs_snapshot_create", map[string]string{
+		auditEvent("zfs_snapshot_create", map[string]string{
 			"source_dataset": restoreDataset,
 			"snapshot_name":  snapshotName,
 		})
@@ -131,7 +131,7 @@ func (s *AgentService) createZFSClone(restoreName, cloneName string) (string, er
 
 func (s *AgentService) getCloneMountpoint(restoreName, cloneDataset, cloneName string) (string, error) {
 	// Check if clone already exists, if not create it
-	if !s.datasetExists(cloneDataset) {
+	if !datasetExists(cloneDataset) {
 		// Construct snapshot name from clone dataset using the restore dataset
 		restoreDataset := restoreDataset(restoreName)
 		snapshotName := restoreDataset + "@" + cloneName
@@ -148,7 +148,7 @@ func (s *AgentService) getCloneMountpoint(restoreName, cloneDataset, cloneName s
 		}
 
 		// Audit ZFS clone creation
-		s.auditEvent("zfs_clone_create", map[string]string{
+		auditEvent("zfs_clone_create", map[string]string{
 			"source_snapshot": snapshotName,
 			"clone_dataset":   cloneDataset,
 			"mountpoint":      expectedMountpoint,
@@ -156,7 +156,7 @@ func (s *AgentService) getCloneMountpoint(restoreName, cloneDataset, cloneName s
 	}
 
 	// Get mount point
-	cmd := exec.Command("sudo", "zfs", "get", "-H", "-o", "value", "mountpoint", cloneDataset)
+	cmd := GetMountpoint(cloneDataset)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("getting ZFS mountpoint: %w", err)
@@ -182,7 +182,7 @@ func (s *AgentService) coordinatePostgreSQLBackup(restoreDataset, snapshotName s
 	sourcePath := strings.TrimSpace(string(output))
 
 	// Check if PostgreSQL is running on this data directory
-	port, isRunning := s.extractPortFromPostmasterPid(sourcePath)
+	port, isRunning := extractPortFromPostmasterPid(sourcePath)
 	if !isRunning {
 		// PostgreSQL isn't running, just create snapshot directly
 		cmd := exec.Command("sudo", "zfs", "snapshot", snapshotName)
@@ -190,7 +190,7 @@ func (s *AgentService) coordinatePostgreSQLBackup(restoreDataset, snapshotName s
 	}
 
 	// PostgreSQL is running - force checkpoint for consistency then take snapshot
-	if _, err := s.ExecPostgresCommand(port, "postgres", "CHECKPOINT;"); err != nil {
+	if _, err := ExecPostgresCommand(port, "postgres", "CHECKPOINT;"); err != nil {
 		return fmt.Errorf("forcing checkpoint: %w", err)
 	}
 
@@ -198,7 +198,7 @@ func (s *AgentService) coordinatePostgreSQLBackup(restoreDataset, snapshotName s
 	return cmd.Run()
 }
 
-func (s *AgentService) prepareCloneForStartup(clonePath string) error {
+func prepareCloneForStartup(clonePath string) error {
 	// Remove standby.signal file
 	standbySignalPath := filepath.Join(clonePath, "standby.signal")
 	if err := os.Remove(standbySignalPath); err != nil && !os.IsNotExist(err) {
@@ -224,7 +224,7 @@ func (s *AgentService) prepareCloneForStartup(clonePath string) error {
 	}
 
 	// Reset WAL for fast startup (skips recovery entirely)
-	resetCmd := exec.Command("sudo", "-u", "postgres", "/usr/lib/postgresql/16/bin/pg_resetwal", "-f", clonePath)
+	resetCmd := exec.Command("sudo", "-u", "postgres", pgResetWalPath(PgVersion), "-f", clonePath)
 	if err := resetCmd.Run(); err != nil {
 		return fmt.Errorf("resetting WAL for fast startup: %w", err)
 	}
@@ -241,7 +241,7 @@ restore_command = ''
 
 	// Configure postgresql.conf for clone optimization
 	postgresqlConfPath := filepath.Join(clonePath, "postgresql.conf")
-	if err := s.updatePostgreSQLConf(postgresqlConfPath); err != nil {
+	if err := updatePostgreSQLConf(postgresqlConfPath); err != nil {
 		return fmt.Errorf("updating postgresql.conf: %w", err)
 	}
 
@@ -261,7 +261,7 @@ host    all             admin           0.0.0.0/0               md5
 	return nil
 }
 
-func (s *AgentService) updatePostgreSQLConf(confPath string) error {
+func updatePostgreSQLConf(confPath string) error {
 	// Read existing config
 	data, err := os.ReadFile(confPath)
 	if err != nil {
@@ -328,7 +328,7 @@ func (s *AgentService) updatePostgreSQLConf(confPath string) error {
 	return nil
 }
 
-func (s *AgentService) saveCheckoutMetadata(checkout *CheckoutInfo) error {
+func saveCheckoutMetadata(checkout *CheckoutInfo) error {
 	metadataPath := filepath.Join(checkout.ClonePath, ".quic-meta.json")
 
 	metadata := map[string]interface{}{
@@ -425,12 +425,12 @@ func (s *AgentService) startSystemdService(checkout *CheckoutInfo) error {
 	}
 
 	// Wait for PostgreSQL to be ready
-	if err := s.waitForPostgresReady(checkout.Port, 30*time.Second); err != nil {
+	if err := waitForPostgresReady(checkout.Port, 30*time.Second); err != nil {
 		return fmt.Errorf("PostgreSQL failed to become ready on port %d: %w", checkout.Port, err)
 	}
 
 	// Audit service start
-	s.auditEvent("systemd_service_start", map[string]interface{}{
+	auditEvent("systemd_service_start", map[string]interface{}{
 		"clone_name":   checkout.CloneName,
 		"service_name": serviceName,
 		"port":         checkout.Port,
@@ -488,50 +488,40 @@ func (s *AgentService) setupAdminUser(checkout *CheckoutInfo) error {
 		GRANT ALL PRIVILEGES ON DATABASE postgres TO admin;
 	`, checkout.AdminPassword, checkout.AdminPassword)
 
-	_, err := s.ExecPostgresCommand(checkout.Port, "postgres", sqlCommands)
+	_, err := ExecPostgresCommand(checkout.Port, "postgres", sqlCommands)
 	return err
 }
 
-func (s *AgentService) findAvailablePortFromOS() (int, error) {
+func findAvailablePortFromOS() (int, error) {
 	for port := StartPort; port <= EndPort; port++ {
-		if s.isPortAvailableForClone(port) {
+		if isPortAvailableForClone(port) {
 			return port, nil
 		}
 	}
 	return 0, fmt.Errorf("no available ports in range %d-%d", StartPort, EndPort)
 }
 
-func (s *AgentService) isPortAvailableForClone(port int) bool {
-	// Check if port is actually in use on the OS
+func isPortAvailableForClone(port int) bool {
+	// Check if port is in use
 	conn, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-	if err != nil {
-		return false // Port is in use or unavailable
-	}
-	conn.Close()
-
-	// Also check if UFW already has a rule for this port
-	if s.hasUFWRule(port) {
-		return false // Port has existing firewall rule
-	}
-
-	return true
-}
-
-func (s *AgentService) isPostgresListening(port int) bool {
-	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", port))
 	if err != nil {
 		return false
 	}
 	conn.Close()
+
+	// Also check if UFW
+	if hasUFWRule(port) {
+		return false
+	}
+
 	return true
 }
 
-func (s *AgentService) waitForPostgresReady(port int, timeout time.Duration) error {
+func waitForPostgresReady(port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
-		pgIsReadyCmd := "/usr/lib/postgresql/16/bin/pg_isready"
-		cmd := exec.Command(pgIsReadyCmd, "-h", "localhost", "-p", fmt.Sprintf("%d", port))
+		cmd := exec.Command(pgIsReadyPath(PgVersion), "-h", "localhost", "-p", fmt.Sprintf("%d", port))
 		if err := cmd.Run(); err == nil {
 			return nil // PostgreSQL is ready to accept connections
 		}
@@ -545,13 +535,11 @@ func (s *AgentService) waitForPostgresReady(port int, timeout time.Duration) err
 func (s *AgentService) discoverCheckoutFromOS(restoreName, cloneName string) (*CheckoutInfo, error) {
 	cloneDataset := cloneDataset(restoreName, cloneName)
 
-	// Check if ZFS clone exists
-	if !s.datasetExists(cloneDataset) {
+	if !datasetExists(cloneDataset) {
 		return nil, nil // Clone doesn't exist
 	}
 
-	// Get mount point
-	cmd := exec.Command("sudo", "zfs", "get", "-H", "-o", "value", "mountpoint", cloneDataset)
+	cmd := GetMountpoint(cloneDataset)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("getting ZFS mountpoint: %w", err)
@@ -562,7 +550,7 @@ func (s *AgentService) discoverCheckoutFromOS(restoreName, cloneName string) (*C
 
 	// If mountpoint is valid, try to load metadata from filesystem
 	if clonePath != "none" && clonePath != "-" && clonePath != "" {
-		checkout, err = s.loadCheckoutMetadata(clonePath, cloneName)
+		checkout, err = loadCheckoutMetadata(clonePath, cloneName)
 		if err != nil {
 			return nil, fmt.Errorf("loading checkout metadata: %w", err)
 		}
@@ -581,7 +569,7 @@ func (s *AgentService) discoverCheckoutFromOS(restoreName, cloneName string) (*C
 	return checkout, nil
 }
 
-func (s *AgentService) loadCheckoutMetadata(clonePath, cloneName string) (*CheckoutInfo, error) {
+func loadCheckoutMetadata(clonePath, cloneName string) (*CheckoutInfo, error) {
 	metadataPath := filepath.Join(clonePath, ".quic-meta.json")
 
 	// Read metadata file directly since agent runs as postgres user
@@ -622,7 +610,7 @@ func (s *AgentService) loadCheckoutMetadata(clonePath, cloneName string) (*Check
 	return checkout, nil
 }
 
-func (s *AgentService) extractPortFromPostmasterPid(dataDir string) (int, bool) {
+func extractPortFromPostmasterPid(dataDir string) (int, bool) {
 	postmasterPidPath := filepath.Join(dataDir, "postmaster.pid")
 	data, err := os.ReadFile(postmasterPidPath)
 	if err != nil {
@@ -644,7 +632,7 @@ func (s *AgentService) extractPortFromPostmasterPid(dataDir string) (int, bool) 
 	return 0, false // Couldn't parse port
 }
 
-func (s *AgentService) copyFile(src, dst string) error {
+func copyFile(src, dst string) error {
 	// Read source file
 	data, err := os.ReadFile(src)
 	if err != nil {

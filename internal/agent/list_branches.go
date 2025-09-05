@@ -13,10 +13,10 @@ func (s *AgentService) ListBranches(ctx context.Context, restoreName string) ([]
 	var searchDataset string
 	if restoreName != "" {
 		// If specific restore name provided, search only within that restore
-		searchDataset = ZFSParentDataset + "/" + restoreName
+		searchDataset = ZPool + "/" + restoreName
 	} else {
 		// If no restore name provided, search all restores
-		searchDataset = ZFSParentDataset
+		searchDataset = ZPool
 	}
 
 	// List all datasets recursively under the search dataset

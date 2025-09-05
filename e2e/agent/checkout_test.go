@@ -158,12 +158,12 @@ func TestCheckoutFlow(t *testing.T) {
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
 		// Assert users can quickly use the cloned instance
-		recoveryOutput, err := service.ExecPostgresCommand(checkoutResult.Port, "postgres", "SELECT pg_is_in_recovery();")
+		recoveryOutput, err := agent.ExecPostgresCommand(checkoutResult.Port, "postgres", "SELECT pg_is_in_recovery();")
 		require.NoError(t, err, "Error checking recovery status")
 		require.Contains(t, recoveryOutput, "f", "PostgreSQL should not be in recovery mode (pg_is_in_recovery should return 'f')")
 
 		// Make a real query to the cloned instance
-		usersOutput, err := service.ExecPostgresCommand(checkoutResult.Port, "testdb", "SELECT name FROM users ORDER BY name;")
+		usersOutput, err := agent.ExecPostgresCommand(checkoutResult.Port, "testdb", "SELECT name FROM users ORDER BY name;")
 		require.NoError(t, err, "Should be able to query test data from restored database")
 		require.Equal(t, usersOutput, "  name   \n---------\n Alice\n Bob\n Charlie\n(3 rows)\n\n")
 
@@ -182,7 +182,7 @@ func TestCheckoutFlow(t *testing.T) {
 		require.Contains(t, connStr, "postgresql://admin:", "Connection string should contain admin user")
 
 		// Test that admin is super user
-		output, err := service.ExecPostgresCommand(checkoutResult.Port, "postgres", "SELECT rolname, rolsuper FROM pg_roles WHERE rolname = 'admin';")
+		output, err := agent.ExecPostgresCommand(checkoutResult.Port, "postgres", "SELECT rolname, rolsuper FROM pg_roles WHERE rolname = 'admin';")
 		require.NoError(t, err, "Should be able to query admin user privileges")
 		require.Equal(t, output, " rolname | rolsuper \n---------+----------\n admin   | t\n(1 row)\n\n", "Admin should be super user")
 	})
@@ -271,10 +271,9 @@ func TestCheckoutFlow(t *testing.T) {
 
 	t.Run("AuditLogEntry", func(t *testing.T) {
 		cloneName := generateCloneName()
-		auditLogPath := "/var/log/quic/audit.log"
 
 		// Get initial audit log size (if exists)
-		infoBefore, err := os.Stat(auditLogPath)
+		infoBefore, err := os.Stat(agent.LogFile)
 		require.NoError(t, err, "Audit log file should exist")
 
 		// Create checkout
@@ -282,12 +281,12 @@ func TestCheckoutFlow(t *testing.T) {
 		require.NoError(t, err, "CreateCheckout should succeed")
 
 		// Verify audit log was updated
-		infoAfter, err := os.Stat(auditLogPath)
+		infoAfter, err := os.Stat(agent.LogFile)
 		require.NoError(t, err, "Audit log file should exist")
 		require.Greater(t, infoAfter.Size(), infoBefore.Size(), "Audit log should have grown")
 
 		// Read the last line of the audit log
-		cmd := exec.Command("tail", "-n", "1", auditLogPath)
+		cmd := exec.Command("tail", "-n", "1", agent.LogFile)
 		output, err := cmd.Output()
 		require.NoError(t, err, "Should be able to read last line of audit log")
 		lastLine := strings.TrimSpace(string(output))

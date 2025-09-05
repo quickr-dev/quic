@@ -59,7 +59,7 @@ func verifyZFSDatasetExists(t *testing.T, datasetName string, shouldExist bool) 
 }
 
 func verifyZFSMountpoint(t *testing.T, datasetName, expectedMountpoint string) {
-	cmd := exec.Command("sudo", "zfs", "get", "-H", "-o", "value", "mountpoint", datasetName)
+	cmd := agent.GetMountpoint(datasetName)
 	output, err := cmd.Output()
 	require.NoError(t, err, "Should be able to get mountpoint for %s", datasetName)
 
