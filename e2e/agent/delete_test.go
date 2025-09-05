@@ -22,7 +22,7 @@ func TestDeleteFlow(t *testing.T) {
 		snapshotName := fmt.Sprintf("%s@%s", restoreDatasetName, cloneName)
 
 		// Create a checkout (creates snapshot and clone)
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		checkoutResult, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
@@ -30,7 +30,7 @@ func TestDeleteFlow(t *testing.T) {
 		verifyZFSDatasetExists(t, snapshotName, true)
 
 		// Delete the checkout
-		deleted, err := service.DeleteCheckout(context.Background(), cloneName, restoreResult.Dirname)
+		deleted, err := service.DeleteBranch(context.Background(), cloneName, restoreResult.Dirname)
 		require.NoError(t, err, "DeleteCheckout should succeed")
 		require.True(t, deleted, "DeleteCheckout should return true when checkout was deleted")
 
@@ -43,7 +43,7 @@ func TestDeleteFlow(t *testing.T) {
 		cloneDatasetName := fmt.Sprintf("tank/%s/%s", restoreResult.Dirname, cloneName)
 
 		// Create a checkout (creates snapshot and clone)
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		checkoutResult, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
@@ -51,7 +51,7 @@ func TestDeleteFlow(t *testing.T) {
 		verifyZFSDatasetExists(t, cloneDatasetName, true)
 
 		// Delete the checkout
-		deleted, err := service.DeleteCheckout(context.Background(), cloneName, restoreResult.Dirname)
+		deleted, err := service.DeleteBranch(context.Background(), cloneName, restoreResult.Dirname)
 		require.NoError(t, err, "DeleteCheckout should succeed")
 		require.True(t, deleted, "DeleteCheckout should return true when checkout was deleted")
 
@@ -64,7 +64,7 @@ func TestDeleteFlow(t *testing.T) {
 		serviceName := fmt.Sprintf("quic-clone-%s", cloneName)
 
 		// Create a checkout (creates systemd service)
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		checkoutResult, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
@@ -73,7 +73,7 @@ func TestDeleteFlow(t *testing.T) {
 		verifySystemdFileExists(t, serviceName, true)
 
 		// Delete the checkout
-		deleted, err := service.DeleteCheckout(context.Background(), cloneName, restoreResult.Dirname)
+		deleted, err := service.DeleteBranch(context.Background(), cloneName, restoreResult.Dirname)
 		require.NoError(t, err, "DeleteCheckout should succeed")
 		require.True(t, deleted, "DeleteCheckout should return true when checkout was deleted")
 
@@ -86,7 +86,7 @@ func TestDeleteFlow(t *testing.T) {
 		cloneName := generateCloneName()
 
 		// Create a checkout (opens firewall port)
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		checkoutResult, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
@@ -94,7 +94,7 @@ func TestDeleteFlow(t *testing.T) {
 		assertUFWTcp(t, checkoutResult.Port, true)
 
 		// Delete the checkout
-		deleted, err := service.DeleteCheckout(context.Background(), cloneName, restoreResult.Dirname)
+		deleted, err := service.DeleteBranch(context.Background(), cloneName, restoreResult.Dirname)
 		require.NoError(t, err, "DeleteCheckout should succeed")
 		require.True(t, deleted, "DeleteCheckout should return true when checkout was deleted")
 
@@ -106,11 +106,11 @@ func TestDeleteFlow(t *testing.T) {
 		cloneName := generateCloneName()
 
 		// Create a checkout
-		_, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		_, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 
 		// Delete the checkout
-		deleted, err := service.DeleteCheckout(context.Background(), cloneName, restoreResult.Dirname)
+		deleted, err := service.DeleteBranch(context.Background(), cloneName, restoreResult.Dirname)
 		require.NoError(t, err, "DeleteCheckout should succeed")
 		require.True(t, deleted, "DeleteCheckout should return true when checkout was deleted")
 
@@ -128,30 +128,30 @@ func TestDeleteFlow(t *testing.T) {
 		nonExistentCloneName := generateCloneName()
 
 		// Delete a non-existent checkout
-		deleted, err := service.DeleteCheckout(context.Background(), nonExistentCloneName, restoreResult.Dirname)
+		deleted, err := service.DeleteBranch(context.Background(), nonExistentCloneName, restoreResult.Dirname)
 		require.NoError(t, err, "DeleteCheckout should not return error for non-existent checkout")
 		require.False(t, deleted, "DeleteCheckout should return false when nothing was deleted")
 	})
 
 	t.Run("InvalidCloneName", func(t *testing.T) {
 		// Test reserved name "_restore"
-		_, err := service.DeleteCheckout(context.Background(), "_restore", restoreResult.Dirname)
+		_, err := service.DeleteBranch(context.Background(), "_restore", restoreResult.Dirname)
 		require.Error(t, err, "Should reject reserved name '_restore'")
 		require.Equal(t, "invalid clone name: clone name '_restore' is reserved", err.Error())
 
 		// Test invalid characters
-		_, err = service.DeleteCheckout(context.Background(), "test@invalid", restoreResult.Dirname)
+		_, err = service.DeleteBranch(context.Background(), "test@invalid", restoreResult.Dirname)
 		require.Error(t, err, "Should reject names with invalid characters")
 		require.Equal(t, "invalid clone name: clone name must contain only letters, numbers, underscore, and dash", err.Error())
 
 		// Test empty name
-		_, err = service.DeleteCheckout(context.Background(), "", restoreResult.Dirname)
+		_, err = service.DeleteBranch(context.Background(), "", restoreResult.Dirname)
 		require.Error(t, err, "Should reject empty name")
 		require.Equal(t, "invalid clone name: clone name must be between 1 and 50 characters", err.Error())
 
 		// Test name too long (over 50 characters)
 		longName := strings.Repeat("a", 51)
-		_, err = service.DeleteCheckout(context.Background(), longName, restoreResult.Dirname)
+		_, err = service.DeleteBranch(context.Background(), longName, restoreResult.Dirname)
 		require.Error(t, err, "Should reject names longer than 50 characters")
 		require.Equal(t, "invalid clone name: clone name must be between 1 and 50 characters", err.Error())
 	})

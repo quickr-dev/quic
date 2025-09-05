@@ -19,7 +19,7 @@ const (
 	createdBy    = "username"
 )
 
-func createRestore(t *testing.T) (*agent.CheckoutService, *agent.InitResult) {
+func createRestore(t *testing.T) (*agent.AgentService, *agent.InitResult) {
 	// Create a unique dirname for this restore
 	testDirname := fmt.Sprintf("test-restore-%d", time.Now().UnixNano())
 
@@ -33,7 +33,7 @@ func createRestore(t *testing.T) (*agent.CheckoutService, *agent.InitResult) {
 		Dirname:  testDirname,
 	}
 
-	result, err := service.PerformInit(initConfig)
+	result, err := service.InitRestore(initConfig)
 	require.NoError(t, err, "Restore init should succeed")
 	require.NotNil(t, result)
 

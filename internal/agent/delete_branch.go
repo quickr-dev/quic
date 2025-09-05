@@ -7,7 +7,7 @@ import (
 	"os/exec"
 )
 
-func (s *CheckoutService) DeleteCheckout(ctx context.Context, cloneName string, restoreName string) (bool, error) {
+func (s *AgentService) DeleteBranch(ctx context.Context, cloneName string, restoreName string) (bool, error) {
 	// Validate and normalize clone name
 	validatedName, err := ValidateCloneName(cloneName)
 	if err != nil {
@@ -61,7 +61,7 @@ func (s *CheckoutService) DeleteCheckout(ctx context.Context, cloneName string, 
 	return true, nil
 }
 
-func (s *CheckoutService) destroyZFSClone(cloneDataset string) error {
+func (s *AgentService) destroyZFSClone(cloneDataset string) error {
 	cmd := exec.Command("sudo", "zfs", "destroy", cloneDataset)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("destroying ZFS clone %s: %w", cloneDataset, err)
@@ -75,7 +75,7 @@ func (s *CheckoutService) destroyZFSClone(cloneDataset string) error {
 	return nil
 }
 
-func (s *CheckoutService) destroyZFSSnapshot(snapshotName string) error {
+func (s *AgentService) destroyZFSSnapshot(snapshotName string) error {
 	cmd := exec.Command("sudo", "zfs", "destroy", snapshotName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("destroying ZFS snapshot %s: %w", snapshotName, err)

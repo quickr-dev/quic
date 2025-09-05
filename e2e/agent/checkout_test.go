@@ -29,7 +29,7 @@ func TestCheckoutFlow(t *testing.T) {
 		verifyZFSDatasetExists(t, snapshotName, false)
 
 		// create checkout
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		checkoutResult, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
@@ -45,7 +45,7 @@ func TestCheckoutFlow(t *testing.T) {
 		verifyZFSDatasetExists(t, cloneDatasetName, false)
 
 		// Create checkout (which internally creates snapshot and clone)
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		checkoutResult, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
@@ -82,7 +82,7 @@ func TestCheckoutFlow(t *testing.T) {
 		verifyFileExists(t, restorePath+"/recovery.conf", true)
 
 		// Create checkout
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		checkoutResult, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
@@ -130,7 +130,7 @@ func TestCheckoutFlow(t *testing.T) {
 		cloneName := generateCloneName()
 
 		// Create checkout
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		checkoutResult, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
@@ -153,7 +153,7 @@ func TestCheckoutFlow(t *testing.T) {
 		cloneName := generateCloneName()
 
 		// Create checkout
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		checkoutResult, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult, "CreateCheckout should return result")
 
@@ -175,7 +175,7 @@ func TestCheckoutFlow(t *testing.T) {
 		cloneName := generateCloneName()
 
 		// Create checkout
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		checkoutResult, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 
 		connStr := checkoutResult.ConnectionString("localhost")
@@ -193,7 +193,7 @@ func TestCheckoutFlow(t *testing.T) {
 		ufwBefore := getUFWStatus(t)
 
 		// Create checkout (gets available port dynamically)
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		checkoutResult, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 
 		// Verify firewall rule was not present before checkout and was added after
@@ -205,7 +205,7 @@ func TestCheckoutFlow(t *testing.T) {
 		cloneName := generateCloneName()
 
 		// Create checkout
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		checkoutResult, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 
 		// Verify metadata file exists
@@ -234,12 +234,12 @@ func TestCheckoutFlow(t *testing.T) {
 		cloneName := generateCloneName()
 
 		// Create first checkout
-		checkoutResult1, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		checkoutResult1, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "First CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult1, "First CreateCheckout should return result")
 
 		// Create second checkout with same name
-		checkoutResult2, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		checkoutResult2, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "Second CreateCheckout should succeed")
 		require.NotNil(t, checkoutResult2, "Second CreateCheckout should return result")
 
@@ -248,23 +248,23 @@ func TestCheckoutFlow(t *testing.T) {
 
 	t.Run("InvalidCloneName", func(t *testing.T) {
 		// Test reserved name "_restore"
-		_, err := service.CreateCheckout(context.Background(), "_restore", restoreResult.Dirname, createdBy)
+		_, err := service.CreateBranch(context.Background(), "_restore", restoreResult.Dirname, createdBy)
 		require.Error(t, err, "Should reject reserved name '_restore'")
 		require.Equal(t, "invalid clone name: clone name '_restore' is reserved", err.Error())
 
 		// Test invalid characters
-		_, err = service.CreateCheckout(context.Background(), "test@invalid", restoreResult.Dirname, createdBy)
+		_, err = service.CreateBranch(context.Background(), "test@invalid", restoreResult.Dirname, createdBy)
 		require.Error(t, err, "Should reject names with invalid characters")
 		require.Equal(t, "invalid clone name: clone name must contain only letters, numbers, underscore, and dash", err.Error())
 
 		// Test empty name
-		_, err = service.CreateCheckout(context.Background(), "", restoreResult.Dirname, createdBy)
+		_, err = service.CreateBranch(context.Background(), "", restoreResult.Dirname, createdBy)
 		require.Error(t, err, "Should reject empty name")
 		require.Equal(t, "invalid clone name: clone name must be between 1 and 50 characters", err.Error())
 
 		// Test name too long (over 50 characters)
 		longName := strings.Repeat("a", 51)
-		_, err = service.CreateCheckout(context.Background(), longName, restoreResult.Dirname, createdBy)
+		_, err = service.CreateBranch(context.Background(), longName, restoreResult.Dirname, createdBy)
 		require.Error(t, err, "Should reject names longer than 50 characters")
 		require.Equal(t, "invalid clone name: clone name must be between 1 and 50 characters", err.Error())
 	})
@@ -278,7 +278,7 @@ func TestCheckoutFlow(t *testing.T) {
 		require.NoError(t, err, "Audit log file should exist")
 
 		// Create checkout
-		checkoutResult, err := service.CreateCheckout(context.Background(), cloneName, restoreResult.Dirname, createdBy)
+		checkoutResult, err := service.CreateBranch(context.Background(), cloneName, restoreResult.Dirname, createdBy)
 		require.NoError(t, err, "CreateCheckout should succeed")
 
 		// Verify audit log was updated

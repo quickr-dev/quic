@@ -14,23 +14,23 @@ func TestList(t *testing.T) {
 	// First restore + clones
 	clone1Name := generateCloneName()
 	clone2Name := generateCloneName()
-	_, err := service1.CreateCheckout(context.Background(), clone1Name, restoreResult1.Dirname, createdBy)
+	_, err := service1.CreateBranch(context.Background(), clone1Name, restoreResult1.Dirname, createdBy)
 	require.NoError(t, err)
-	_, err = service1.CreateCheckout(context.Background(), clone2Name, restoreResult1.Dirname, createdBy)
+	_, err = service1.CreateBranch(context.Background(), clone2Name, restoreResult1.Dirname, createdBy)
 	require.NoError(t, err)
 
 	// Second restore + clones
 	service2, restoreResult2 := createRestore(t)
 	clone3Name := generateCloneName()
 	clone4Name := generateCloneName()
-	_, err = service2.CreateCheckout(context.Background(), clone3Name, restoreResult2.Dirname, createdBy)
+	_, err = service2.CreateBranch(context.Background(), clone3Name, restoreResult2.Dirname, createdBy)
 	require.NoError(t, err)
-	_, err = service2.CreateCheckout(context.Background(), clone4Name, restoreResult2.Dirname, createdBy)
+	_, err = service2.CreateBranch(context.Background(), clone4Name, restoreResult2.Dirname, createdBy)
 	require.NoError(t, err)
 
 	t.Run("ListAllCheckouts", func(t *testing.T) {
 		// List all checkouts (no filter)
-		checkouts, err := service1.ListCheckouts(context.Background(), "")
+		checkouts, err := service1.ListBranches(context.Background(), "")
 		require.NoError(t, err, "ListCheckouts should succeed")
 
 		// Verify all our clones are in the list
@@ -46,7 +46,7 @@ func TestList(t *testing.T) {
 
 	t.Run("ListCheckoutsFilteredByFirstRestore", func(t *testing.T) {
 		// List checkouts filtered by first restore
-		checkouts, err := service1.ListCheckouts(context.Background(), restoreResult1.Dirname)
+		checkouts, err := service1.ListBranches(context.Background(), restoreResult1.Dirname)
 		require.NoError(t, err, "ListCheckouts should succeed")
 		require.Equal(t, 2, len(checkouts), "Should find exactly 2 checkouts in first restore")
 
@@ -65,7 +65,7 @@ func TestList(t *testing.T) {
 
 	t.Run("ListCheckoutsFilteredBySecondRestore", func(t *testing.T) {
 		// List checkouts filtered by second restore
-		checkouts, err := service2.ListCheckouts(context.Background(), restoreResult2.Dirname)
+		checkouts, err := service2.ListBranches(context.Background(), restoreResult2.Dirname)
 		require.NoError(t, err, "ListCheckouts should succeed")
 		require.Equal(t, 2, len(checkouts), "Should find exactly 2 checkouts in second restore")
 
@@ -86,7 +86,7 @@ func TestList(t *testing.T) {
 		nonExistentRestoreName := "non-existent-restore"
 
 		// List checkouts from a non-existent restore
-		checkouts, err := service1.ListCheckouts(context.Background(), nonExistentRestoreName)
+		checkouts, err := service1.ListBranches(context.Background(), nonExistentRestoreName)
 		require.NoError(t, err, "ListCheckouts should not error for non-existent restore")
 		require.Equal(t, 0, len(checkouts), "Should return empty list for non-existent restore")
 	})
@@ -96,14 +96,14 @@ func TestList(t *testing.T) {
 		emptyService, emptyRestoreResult := createRestore(t)
 
 		// List checkouts from the empty restore
-		checkouts, err := emptyService.ListCheckouts(context.Background(), emptyRestoreResult.Dirname)
+		checkouts, err := emptyService.ListBranches(context.Background(), emptyRestoreResult.Dirname)
 		require.NoError(t, err, "ListCheckouts should succeed for empty restore")
 		require.Equal(t, 0, len(checkouts), "Should return empty list for restore with no checkouts")
 	})
 
 	t.Run("VerifyCheckoutInfo", func(t *testing.T) {
 		// Use one of the pre-created checkouts to verify info
-		checkouts, err := service1.ListCheckouts(context.Background(), restoreResult1.Dirname)
+		checkouts, err := service1.ListBranches(context.Background(), restoreResult1.Dirname)
 		require.NoError(t, err, "ListCheckouts should succeed")
 		require.GreaterOrEqual(t, len(checkouts), 1, "Should find at least 1 checkout")
 

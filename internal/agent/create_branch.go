@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func (s *CheckoutService) CreateCheckout(ctx context.Context, cloneName string, restoreName string, createdBy string) (*CheckoutInfo, error) {
+func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, restoreName string, createdBy string) (*CheckoutInfo, error) {
 	if !s.tryLockWithShutdownCheck() {
 		return nil, fmt.Errorf("service restarting, please retry in a few seconds")
 	}
@@ -102,7 +102,7 @@ func (s *CheckoutService) CreateCheckout(ctx context.Context, cloneName string, 
 	return checkout, nil
 }
 
-func (s *CheckoutService) createZFSClone(restoreName, cloneName string) (string, error) {
+func (s *AgentService) createZFSClone(restoreName, cloneName string) (string, error) {
 	restoreDataset := restoreDataset(restoreName)
 	cloneDataset := cloneDataset(restoreName, cloneName)
 	snapshotName := restoreDataset + "@" + cloneName
@@ -129,7 +129,7 @@ func (s *CheckoutService) createZFSClone(restoreName, cloneName string) (string,
 	return s.getCloneMountpoint(restoreName, cloneDataset, cloneName)
 }
 
-func (s *CheckoutService) getCloneMountpoint(restoreName, cloneDataset, cloneName string) (string, error) {
+func (s *AgentService) getCloneMountpoint(restoreName, cloneDataset, cloneName string) (string, error) {
 	// Check if clone already exists, if not create it
 	if !s.datasetExists(cloneDataset) {
 		// Construct snapshot name from clone dataset using the restore dataset
@@ -172,7 +172,7 @@ func (s *CheckoutService) getCloneMountpoint(restoreName, cloneDataset, cloneNam
 	return mountpoint, nil
 }
 
-func (s *CheckoutService) coordinatePostgreSQLBackup(restoreDataset, snapshotName string) error {
+func (s *AgentService) coordinatePostgreSQLBackup(restoreDataset, snapshotName string) error {
 	// Get the mount point of the source dataset to find the PostgreSQL data directory
 	cmd := exec.Command("zfs", "get", "-H", "-o", "value", "mountpoint", restoreDataset)
 	output, err := cmd.Output()
@@ -198,7 +198,7 @@ func (s *CheckoutService) coordinatePostgreSQLBackup(restoreDataset, snapshotNam
 	return cmd.Run()
 }
 
-func (s *CheckoutService) prepareCloneForStartup(clonePath string) error {
+func (s *AgentService) prepareCloneForStartup(clonePath string) error {
 	// Remove standby.signal file
 	standbySignalPath := filepath.Join(clonePath, "standby.signal")
 	if err := os.Remove(standbySignalPath); err != nil && !os.IsNotExist(err) {
@@ -261,7 +261,7 @@ host    all             admin           0.0.0.0/0               md5
 	return nil
 }
 
-func (s *CheckoutService) updatePostgreSQLConf(confPath string) error {
+func (s *AgentService) updatePostgreSQLConf(confPath string) error {
 	// Read existing config
 	data, err := os.ReadFile(confPath)
 	if err != nil {
@@ -328,7 +328,7 @@ func (s *CheckoutService) updatePostgreSQLConf(confPath string) error {
 	return nil
 }
 
-func (s *CheckoutService) saveCheckoutMetadata(checkout *CheckoutInfo) error {
+func (s *AgentService) saveCheckoutMetadata(checkout *CheckoutInfo) error {
 	metadataPath := filepath.Join(checkout.ClonePath, ".quic-meta.json")
 
 	metadata := map[string]interface{}{
@@ -356,7 +356,7 @@ func (s *CheckoutService) saveCheckoutMetadata(checkout *CheckoutInfo) error {
 	return nil
 }
 
-func (s *CheckoutService) createSystemdService(checkout *CheckoutInfo) error {
+func (s *AgentService) createSystemdService(checkout *CheckoutInfo) error {
 	serviceName := fmt.Sprintf("quic-clone-%s", checkout.CloneName)
 	serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
 
@@ -405,7 +405,7 @@ WantedBy=multi-user.target
 	return nil
 }
 
-func (s *CheckoutService) startSystemdService(checkout *CheckoutInfo) error {
+func (s *AgentService) startSystemdService(checkout *CheckoutInfo) error {
 	serviceName := fmt.Sprintf("quic-clone-%s", checkout.CloneName)
 
 	// Start the service
@@ -439,7 +439,7 @@ func (s *CheckoutService) startSystemdService(checkout *CheckoutInfo) error {
 	return nil
 }
 
-func (s *CheckoutService) stopSystemdService(checkout *CheckoutInfo) error {
+func (s *AgentService) stopSystemdService(checkout *CheckoutInfo) error {
 	serviceName := fmt.Sprintf("quic-clone-%s", checkout.CloneName)
 
 	// Stop the service
@@ -451,7 +451,7 @@ func (s *CheckoutService) stopSystemdService(checkout *CheckoutInfo) error {
 	return nil
 }
 
-func (s *CheckoutService) removeSystemdService(checkout *CheckoutInfo) error {
+func (s *AgentService) removeSystemdService(checkout *CheckoutInfo) error {
 	serviceName := fmt.Sprintf("quic-clone-%s", checkout.CloneName)
 	serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
 
@@ -474,7 +474,7 @@ func (s *CheckoutService) removeSystemdService(checkout *CheckoutInfo) error {
 	return nil
 }
 
-func (s *CheckoutService) setupAdminUser(checkout *CheckoutInfo) error {
+func (s *AgentService) setupAdminUser(checkout *CheckoutInfo) error {
 	// Connect to the database and set up admin user using Unix socket (more reliable for postgres user)
 	sqlCommands := fmt.Sprintf(`
 		-- Create admin role if it doesn't exist
@@ -492,7 +492,7 @@ func (s *CheckoutService) setupAdminUser(checkout *CheckoutInfo) error {
 	return err
 }
 
-func (s *CheckoutService) findAvailablePortFromOS() (int, error) {
+func (s *AgentService) findAvailablePortFromOS() (int, error) {
 	for port := StartPort; port <= EndPort; port++ {
 		if s.isPortAvailableForClone(port) {
 			return port, nil
@@ -501,7 +501,7 @@ func (s *CheckoutService) findAvailablePortFromOS() (int, error) {
 	return 0, fmt.Errorf("no available ports in range %d-%d", StartPort, EndPort)
 }
 
-func (s *CheckoutService) isPortAvailableForClone(port int) bool {
+func (s *AgentService) isPortAvailableForClone(port int) bool {
 	// Check if port is actually in use on the OS
 	conn, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
@@ -517,7 +517,7 @@ func (s *CheckoutService) isPortAvailableForClone(port int) bool {
 	return true
 }
 
-func (s *CheckoutService) isPostgresListening(port int) bool {
+func (s *AgentService) isPostgresListening(port int) bool {
 	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", port))
 	if err != nil {
 		return false
@@ -526,7 +526,7 @@ func (s *CheckoutService) isPostgresListening(port int) bool {
 	return true
 }
 
-func (s *CheckoutService) waitForPostgresReady(port int, timeout time.Duration) error {
+func (s *AgentService) waitForPostgresReady(port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
@@ -542,7 +542,7 @@ func (s *CheckoutService) waitForPostgresReady(port int, timeout time.Duration) 
 	return fmt.Errorf("timeout waiting for PostgreSQL to become ready after %v", timeout)
 }
 
-func (s *CheckoutService) discoverCheckoutFromOS(restoreName, cloneName string) (*CheckoutInfo, error) {
+func (s *AgentService) discoverCheckoutFromOS(restoreName, cloneName string) (*CheckoutInfo, error) {
 	cloneDataset := cloneDataset(restoreName, cloneName)
 
 	// Check if ZFS clone exists
@@ -581,7 +581,7 @@ func (s *CheckoutService) discoverCheckoutFromOS(restoreName, cloneName string) 
 	return checkout, nil
 }
 
-func (s *CheckoutService) loadCheckoutMetadata(clonePath, cloneName string) (*CheckoutInfo, error) {
+func (s *AgentService) loadCheckoutMetadata(clonePath, cloneName string) (*CheckoutInfo, error) {
 	metadataPath := filepath.Join(clonePath, ".quic-meta.json")
 
 	// Read metadata file directly since agent runs as postgres user
@@ -622,7 +622,7 @@ func (s *CheckoutService) loadCheckoutMetadata(clonePath, cloneName string) (*Ch
 	return checkout, nil
 }
 
-func (s *CheckoutService) extractPortFromPostmasterPid(dataDir string) (int, bool) {
+func (s *AgentService) extractPortFromPostmasterPid(dataDir string) (int, bool) {
 	postmasterPidPath := filepath.Join(dataDir, "postmaster.pid")
 	data, err := os.ReadFile(postmasterPidPath)
 	if err != nil {
@@ -644,7 +644,7 @@ func (s *CheckoutService) extractPortFromPostmasterPid(dataDir string) (int, boo
 	return 0, false // Couldn't parse port
 }
 
-func (s *CheckoutService) copyFile(src, dst string) error {
+func (s *AgentService) copyFile(src, dst string) error {
 	// Read source file
 	data, err := os.ReadFile(src)
 	if err != nil {

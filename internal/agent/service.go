@@ -7,18 +7,18 @@ import (
 	"time"
 )
 
-type CheckoutService struct {
+type AgentService struct {
 	checkoutMutex  sync.Mutex
 	shutdownSignal atomic.Bool
 }
 
-func NewCheckoutService() *CheckoutService {
-	return &CheckoutService{}
+func NewCheckoutService() *AgentService {
+	return &AgentService{}
 }
 
 // Attempts to acquire the checkout lock while respecting shutdown signal.
 // Returns true if lock acquired successfully, false if shutdown is in progress.
-func (s *CheckoutService) tryLockWithShutdownCheck() bool {
+func (s *AgentService) tryLockWithShutdownCheck() bool {
 	// Non-blocking check first to avoid unnecessary waiting
 	if s.shutdownSignal.Load() {
 		return false
@@ -38,7 +38,7 @@ func (s *CheckoutService) tryLockWithShutdownCheck() bool {
 
 // Shutdown initiates graceful shutdown by rejecting new checkouts and waiting for active ones to complete.
 // Only waits for the currently active checkout (if any), immediately rejects queued ones.
-func (s *CheckoutService) Shutdown(timeout time.Duration) error {
+func (s *AgentService) Shutdown(timeout time.Duration) error {
 	// Signal shutdown to reject new/queued requests
 	s.shutdownSignal.Store(true)
 

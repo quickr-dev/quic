@@ -30,23 +30,23 @@ func cloneDataset(restoreName, cloneName string) string {
 	return ZFSParentDataset + "/" + restoreName + "/" + cloneName
 }
 
-func (s *CheckoutService) datasetExists(dataset string) bool {
+func (s *AgentService) datasetExists(dataset string) bool {
 	cmd := exec.Command("sudo", "zfs", "list", "-H", "-o", "name", dataset)
 	return cmd.Run() == nil
 }
 
-func (s *CheckoutService) snapshotExists(snapshot string) bool {
+func (s *AgentService) snapshotExists(snapshot string) bool {
 	cmd := exec.Command("sudo", "zfs", "list", "-H", "-o", "name", "-t", "snapshot", snapshot)
 	return cmd.Run() == nil
 }
 
-func (s *CheckoutService) openFirewallPort(port int) error {
+func (s *AgentService) openFirewallPort(port int) error {
 	portSpec := fmt.Sprintf("%d/tcp", port)
 	cmd := exec.Command("sudo", "ufw", "allow", portSpec)
 	return cmd.Run()
 }
 
-func (s *CheckoutService) hasUFWRule(port int) bool {
+func (s *AgentService) hasUFWRule(port int) bool {
 	cmd := exec.Command("sudo", "ufw", "status")
 	output, err := cmd.Output()
 	if err != nil {
@@ -57,13 +57,13 @@ func (s *CheckoutService) hasUFWRule(port int) bool {
 	return strings.Contains(string(output), portStr)
 }
 
-func (s *CheckoutService) closeFirewallPort(port int) error {
+func (s *AgentService) closeFirewallPort(port int) error {
 	portSpec := fmt.Sprintf("%d/tcp", port)
 	cmd := exec.Command("sudo", "ufw", "delete", "allow", portSpec)
 	return cmd.Run()
 }
 
-func (s *CheckoutService) ExecPostgresCommand(port int, database, sqlCommand string) (string, error) {
+func (s *AgentService) ExecPostgresCommand(port int, database, sqlCommand string) (string, error) {
 	psqlCmd := "/usr/lib/postgresql/16/bin/psql"
 	socketDir := "/var/run/postgresql"
 
@@ -81,7 +81,7 @@ func (s *CheckoutService) ExecPostgresCommand(port int, database, sqlCommand str
 }
 
 // Audit logging
-func (s *CheckoutService) auditEvent(eventType string, details interface{}) error {
+func (s *AgentService) auditEvent(eventType string, details interface{}) error {
 	logEntry := map[string]interface{}{
 		"timestamp":  time.Now().UTC().Format(time.RFC3339),
 		"event_type": eventType,

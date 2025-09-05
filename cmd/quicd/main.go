@@ -51,7 +51,7 @@ var initCmd = &cobra.Command{
 			Dirname:  dirname,
 		}
 
-		_, err := agentService.PerformInit(initConfig)
+		_, err := agentService.InitRestore(initConfig)
 		if err != nil {
 			return fmt.Errorf("init failed: %w", err)
 		}

@@ -27,7 +27,7 @@ type InitResult struct {
 	CreatedAt   string `json:"created_at"`
 }
 
-func (s *CheckoutService) PerformInit(config *InitConfig) (*InitResult, error) {
+func (s *AgentService) InitRestore(config *InitConfig) (*InitResult, error) {
 	datasetPath := fmt.Sprintf("%s/%s", ZFSParentDataset, config.Dirname)
 	mountPath := fmt.Sprintf("/opt/quic/%s/_restore", config.Dirname)
 
@@ -115,7 +115,7 @@ func findAvailablePortForInit() (int, error) {
 }
 
 // createPostgreSQLSystemdService creates a systemd service for the restored PostgreSQL instance
-func (s *CheckoutService) createPostgreSQLSystemdService(dirname, mountPath string, port int, serviceName string) error {
+func (s *AgentService) createPostgreSQLSystemdService(dirname, mountPath string, port int, serviceName string) error {
 	serviceContent := fmt.Sprintf(`[Unit]
 Description=PostgreSQL database server (restored instance - %s)
 Documentation=man:postgres(1)
@@ -160,7 +160,7 @@ WantedBy=multi-user.target
 }
 
 // startPostgreSQLService starts the PostgreSQL systemd service
-func (s *CheckoutService) startPostgreSQLService(serviceName string) error {
+func (s *AgentService) startPostgreSQLService(serviceName string) error {
 	if err := exec.Command("sudo", "systemctl", "start", serviceName).Run(); err != nil {
 		return fmt.Errorf("starting systemd service %s: %w", serviceName, err)
 	}
@@ -168,7 +168,7 @@ func (s *CheckoutService) startPostgreSQLService(serviceName string) error {
 }
 
 // waitForPostgreSQLReady waits for PostgreSQL to accept connections
-func (s *CheckoutService) waitForPostgreSQLReady(port int, timeout time.Duration) error {
+func (s *AgentService) waitForPostgreSQLReady(port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {

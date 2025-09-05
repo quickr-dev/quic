@@ -13,11 +13,11 @@ import (
 // QuicServer implements the gRPC service interface
 type QuicServer struct {
 	pb.UnimplementedQuicServiceServer
-	agentService *agent.CheckoutService
+	agentService *agent.AgentService
 }
 
 // NewQuicServer creates a new gRPC server instance
-func NewQuicServer(agentService *agent.CheckoutService) *QuicServer {
+func NewQuicServer(agentService *agent.AgentService) *QuicServer {
 	return &QuicServer{
 		agentService: agentService,
 	}
@@ -33,7 +33,7 @@ func (s *QuicServer) CreateCheckout(ctx context.Context, req *pb.CreateCheckoutR
 	log.Printf("User %s creating checkout: %s", user, req.CloneName)
 
 	// Call the agent service to create the checkout
-	checkout, err := s.agentService.CreateCheckout(ctx, req.CloneName, req.RestoreName, user)
+	checkout, err := s.agentService.CreateBranch(ctx, req.CloneName, req.RestoreName, user)
 	if err != nil {
 		log.Printf("User %s failed to create checkout %s: %v", user, req.CloneName, err)
 		return nil, fmt.Errorf("agent CreateCheckout failed: %w", err)
@@ -57,7 +57,7 @@ func (s *QuicServer) DeleteCheckout(ctx context.Context, req *pb.DeleteCheckoutR
 	log.Printf("User %s deleting checkout: %s", user, req.CloneName)
 
 	// Call the agent service to delete the checkout
-	deleted, err := s.agentService.DeleteCheckout(ctx, req.CloneName, req.RestoreName)
+	deleted, err := s.agentService.DeleteBranch(ctx, req.CloneName, req.RestoreName)
 	if err != nil {
 		log.Printf("User %s failed to delete checkout %s: %v", user, req.CloneName, err)
 		return nil, fmt.Errorf("agent DeleteCheckout failed: %w", err)
@@ -80,7 +80,7 @@ func (s *QuicServer) ListCheckouts(ctx context.Context, req *pb.ListCheckoutsReq
 	log.Printf("User %s listing checkouts", user)
 
 	// Call the agent service to list checkouts
-	checkouts, err := s.agentService.ListCheckouts(ctx, req.RestoreName)
+	checkouts, err := s.agentService.ListBranches(ctx, req.RestoreName)
 	if err != nil {
 		log.Printf("User %s failed to list checkouts: %v", user, err)
 		return nil, fmt.Errorf("agent ListCheckouts failed: %w", err)

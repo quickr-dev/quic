@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// ListCheckouts discovers and returns information about all existing checkouts
+// ListBranches discovers and returns information about all existing checkouts
 // If restoreName is provided, only returns checkouts from that specific restore
-func (s *CheckoutService) ListCheckouts(ctx context.Context, restoreName string) ([]*CheckoutInfo, error) {
+func (s *AgentService) ListBranches(ctx context.Context, restoreName string) ([]*CheckoutInfo, error) {
 	var searchDataset string
 	if restoreName != "" {
 		// If specific restore name provided, search only within that restore
