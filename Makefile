@@ -63,3 +63,16 @@ replace-quic-cli:
 	GOOS=darwin GOARCH=arm64 go build -ldflags="-X 'github.com/quickr-dev/quic/internal/version.Version=$$current_version'" -o bin/quic-darwin-arm64 ./cmd/quic; \
 	cp bin/quic-darwin-arm64 ~/.local/bin/quic; \
 	@echo "> Done"
+
+vm-recreate-base:
+	multipass delete quic-base --purge || true
+	multipass launch --name quic-base --disk 20G --memory 2G --cpus 2
+	multipass exec quic-base -- sudo mkdir -p /root/.ssh
+	cat ~/.ssh/id_rsa.pub | multipass exec quic-base -- sudo bash -c 'cat >> /root/.ssh/authorized_keys'
+	multipass exec quic-base -- sudo chown -R root:root /root/.ssh
+	multipass exec quic-base -- sudo chmod 700 /root/.ssh
+	multipass exec quic-base -- sudo chmod 600 /root/.ssh/authorized_keys
+	multipass exec quic-base -- sudo bash -c 'echo "PermitRootLogin yes" >> /etc/ssh/sshd_config'
+	multipass exec quic-base -- sudo systemctl restart ssh
+	multipass exec quic-base -- sudo bash -c 'mkdir -p /tmp/test-disks && fallocate -l 5G /tmp/test-disks/disk1.img && fallocate -l 3G /tmp/test-disks/disk2.img && fallocate -l 1G /tmp/test-disks/disk3.img'
+	multipass exec quic-base -- sudo bash -c 'losetup /dev/loop10 /tmp/test-disks/disk1.img && losetup /dev/loop11 /tmp/test-disks/disk2.img && losetup /dev/loop12 /tmp/test-disks/disk3.img'

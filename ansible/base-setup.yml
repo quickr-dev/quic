@@ -116,7 +116,11 @@
         group: postgres
         mode: "{{ item.mode }}"
       loop:
-        - { path: "{{ cert_path }}/server.crt", owner: "postgres", mode: "0644" }
+        - {
+            path: "{{ cert_path }}/server.crt",
+            owner: "postgres",
+            mode: "0644",
+          }
         - { path: "{{ cert_path }}/server.key", owner: "root", mode: "0640" }
 
     # ===============================================
@@ -139,10 +143,6 @@
       register: tank_status
       failed_when: false
       changed_when: false
-
-    - name: Display tank encryption status
-      debug:
-        msg: "Tank pool status: {{ 'exists' if tank_status.rc == 0 else 'does not exist' }} | Encryption: {{ 'enabled' if 'aes' in tank_status.stdout else 'disabled' }}"
 
     - name: Set up encrypted tank pool if needed
       block:

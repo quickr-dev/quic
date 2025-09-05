@@ -32,6 +32,7 @@ func Execute() {
 func init() {
 	rootCmd.AddCommand(checkoutCmd)
 	rootCmd.AddCommand(deleteCmd)
+	rootCmd.AddCommand(hostCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(lsCmd)
 	rootCmd.AddCommand(versionCmd)
