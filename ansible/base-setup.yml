@@ -76,8 +76,8 @@
     - name: Setup quic user sudoers permissions for system operations
       copy:
         content: |
-          # Quic agent permissions for system operations
-          quic ALL=(ALL) NOPASSWD: /sbin/zfs, /sbin/zpool, /usr/sbin/ufw, /bin/kill, /usr/bin/pgrep, /bin/rm, /bin/systemctl, /usr/bin/tee
+          # Quic agent permissions for system operations (as root)
+          quic ALL=(root) NOPASSWD: /sbin/zfs, /sbin/zpool, /usr/sbin/ufw, /usr/bin/pgrep, /bin/systemctl, /usr/bin/tee, /bin/rm -f /etc/systemd/system/quic-clone-*.service
 
           # Allow quic to run postgres commands as postgres user
           quic ALL=(postgres) NOPASSWD: /usr/lib/postgresql/*/bin/*, /bin/sh
