@@ -10,17 +10,13 @@ import (
 // ListCheckouts discovers and returns information about all existing checkouts
 // If restoreName is provided, only returns checkouts from that specific restore
 func (s *CheckoutService) ListCheckouts(ctx context.Context, restoreName string) ([]*CheckoutInfo, error) {
-	zfsConfig := &ZFSConfig{
-		ParentDataset: s.config.ZFSParentDataset,
-	}
-
 	var searchDataset string
 	if restoreName != "" {
 		// If specific restore name provided, search only within that restore
-		searchDataset = zfsConfig.ParentDataset + "/" + restoreName
+		searchDataset = ZFSParentDataset + "/" + restoreName
 	} else {
 		// If no restore name provided, search all restores
-		searchDataset = zfsConfig.ParentDataset
+		searchDataset = ZFSParentDataset
 	}
 
 	// List all datasets recursively under the search dataset
@@ -56,16 +52,10 @@ func (s *CheckoutService) ListCheckouts(ctx context.Context, restoreName string)
 		}
 
 		datasetRestoreName := parts[len(parts)-2] // Second to last part is the restore name
-		cloneName := parts[len(parts)-1]         // Last part is the clone name
-
-		// Create ZFS config with the restore name for discovery
-		cloneZfsConfig := &ZFSConfig{
-			ParentDataset: s.config.ZFSParentDataset,
-			RestoreName:   datasetRestoreName,
-		}
+		cloneName := parts[len(parts)-1]          // Last part is the clone name
 
 		// Try to get checkout info for this clone
-		checkout, err := s.discoverCheckoutFromOS(cloneZfsConfig, cloneName)
+		checkout, err := s.discoverCheckoutFromOS(datasetRestoreName, cloneName)
 		if err != nil {
 			// Log the error but continue with other checkouts
 			fmt.Printf("Warning: failed to load checkout info for %s/%s: %v\n", datasetRestoreName, cloneName, err)

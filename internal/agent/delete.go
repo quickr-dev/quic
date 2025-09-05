@@ -15,13 +15,8 @@ func (s *CheckoutService) DeleteCheckout(ctx context.Context, cloneName string, 
 	}
 	cloneName = validatedName
 
-	zfsConfig := &ZFSConfig{
-		ParentDataset: s.config.ZFSParentDataset,
-		RestoreName:   restoreName,
-	}
-
 	// Check if checkout exists
-	existing, err := s.discoverCheckoutFromOS(zfsConfig, cloneName)
+	existing, err := s.discoverCheckoutFromOS(restoreName, cloneName)
 	if err != nil {
 		return false, fmt.Errorf("checking existing checkout: %w", err)
 	}
@@ -42,7 +37,7 @@ func (s *CheckoutService) DeleteCheckout(ctx context.Context, cloneName string, 
 	}
 
 	// Remove ZFS clone
-	cloneDataset := zfsConfig.CloneDataset(cloneName)
+	cloneDataset := cloneDataset(restoreName, cloneName)
 	if s.datasetExists(cloneDataset) {
 		if err := s.destroyZFSClone(cloneDataset); err != nil {
 			return false, fmt.Errorf("destroying ZFS clone: %w", err)
@@ -50,7 +45,7 @@ func (s *CheckoutService) DeleteCheckout(ctx context.Context, cloneName string, 
 	}
 
 	// Remove ZFS snapshot
-	restoreDataset := zfsConfig.RestoreDataset()
+	restoreDataset := restoreDataset(restoreName)
 	snapshotName := restoreDataset + "@" + cloneName
 	if s.snapshotExists(snapshotName) {
 		if err := s.destroyZFSSnapshot(snapshotName); err != nil {

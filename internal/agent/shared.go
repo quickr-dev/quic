@@ -10,7 +10,26 @@ import (
 	"time"
 )
 
-// ZFS utilities
+const (
+	ZFSParentDataset  = "tank"
+	PostgreSQLVersion = "16"
+	StartPort         = 15432
+	EndPort           = 16432
+)
+
+func pgBinPath(pgVersion string) string {
+	return fmt.Sprintf("/usr/lib/postgresql/%s/bin", pgVersion)
+}
+
+// ZFS dataset helper functions
+func restoreDataset(restoreName string) string {
+	return ZFSParentDataset + "/" + restoreName
+}
+
+func cloneDataset(restoreName, cloneName string) string {
+	return ZFSParentDataset + "/" + restoreName + "/" + cloneName
+}
+
 func (s *CheckoutService) datasetExists(dataset string) bool {
 	cmd := exec.Command("sudo", "zfs", "list", "-H", "-o", "name", dataset)
 	return cmd.Run() == nil
@@ -21,9 +40,7 @@ func (s *CheckoutService) snapshotExists(snapshot string) bool {
 	return cmd.Run() == nil
 }
 
-// UFW/Firewall utilities
 func (s *CheckoutService) openFirewallPort(port int) error {
-	// Explicitly specify TCP protocol for enhanced security
 	portSpec := fmt.Sprintf("%d/tcp", port)
 	cmd := exec.Command("sudo", "ufw", "allow", portSpec)
 	return cmd.Run()
@@ -125,11 +142,11 @@ func (c *CheckoutInfo) GetRestoreName() string {
 	if c.ClonePath == "" {
 		return ""
 	}
-	
+
 	parts := strings.Split(strings.TrimPrefix(c.ClonePath, "/"), "/")
 	if len(parts) >= 3 && parts[0] == "opt" && parts[1] == "quic" {
 		return parts[2] // Third part is the restore name (after "opt/quic")
 	}
-	
+
 	return ""
 }

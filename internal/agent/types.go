@@ -19,21 +19,7 @@ type CheckoutInfo struct {
 }
 
 func (c *CheckoutInfo) ConnectionString(host string) string {
-	return fmt.Sprintf("postgresql://admin:%s@%s:%d/postgres",
-		c.AdminPassword, host, c.Port)
-}
-
-type ZFSConfig struct {
-	ParentDataset string
-	RestoreName   string
-}
-
-func (z *ZFSConfig) RestoreDataset() string {
-	return z.ParentDataset + "/" + z.RestoreName
-}
-
-func (z *ZFSConfig) CloneDataset(cloneName string) string {
-	return z.ParentDataset + "/" + z.RestoreName + "/" + cloneName
+	return fmt.Sprintf("postgresql://admin:%s@%s:%d/postgres", c.AdminPassword, host, c.Port)
 }
 
 // ValidateCloneName validates that a clone name is safe to use

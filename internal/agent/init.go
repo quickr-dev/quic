@@ -28,7 +28,7 @@ type InitResult struct {
 }
 
 func (s *CheckoutService) PerformInit(config *InitConfig) (*InitResult, error) {
-	datasetPath := fmt.Sprintf("%s/%s", s.config.ZFSParentDataset, config.Dirname)
+	datasetPath := fmt.Sprintf("%s/%s", ZFSParentDataset, config.Dirname)
 	mountPath := fmt.Sprintf("/opt/quic/%s/_restore", config.Dirname)
 
 	// Check if directory already exists
@@ -101,10 +101,7 @@ func (s *CheckoutService) PerformInit(config *InitConfig) (*InitResult, error) {
 }
 
 func findAvailablePortForInit() (int, error) {
-	startPort := 5433
-	endPort := 6433
-
-	for port := startPort; port <= endPort; port++ {
+	for port := StartPort; port <= EndPort; port++ {
 		conn, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 		if err != nil {
 			continue
@@ -114,7 +111,7 @@ func findAvailablePortForInit() (int, error) {
 		return port, nil
 	}
 
-	return 0, fmt.Errorf("no available ports in range %d-%d", startPort, endPort)
+	return 0, fmt.Errorf("no available ports in range %d-%d", StartPort, EndPort)
 }
 
 // createPostgreSQLSystemdService creates a systemd service for the restored PostgreSQL instance
@@ -139,7 +136,7 @@ RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
-`, dirname, s.config.PostgresBinPath, mountPath, port, s.config.PostgresBinPath, mountPath)
+`, dirname, pgBinPath(PostgreSQLVersion), mountPath, port, pgBinPath(PostgreSQLVersion), mountPath)
 
 	servicePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
 

@@ -56,4 +56,3 @@ func TestCLIIntegration(t *testing.T) {
 		})
 	})
 }
-

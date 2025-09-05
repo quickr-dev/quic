@@ -8,22 +8,12 @@ import (
 )
 
 type CheckoutService struct {
-	config         *CheckoutConfig
 	checkoutMutex  sync.Mutex
 	shutdownSignal atomic.Bool
 }
 
-type CheckoutConfig struct {
-	ZFSParentDataset string
-	PostgresBinPath  string // /usr/lib/postgresql/16/bin
-	StartPort        int
-	EndPort          int
-}
-
-func NewCheckoutService(config *CheckoutConfig) *CheckoutService {
-	return &CheckoutService{
-		config: config,
-	}
+func NewCheckoutService() *CheckoutService {
+	return &CheckoutService{}
 }
 
 // Attempts to acquire the checkout lock while respecting shutdown signal.

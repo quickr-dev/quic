@@ -44,12 +44,7 @@ var initCmd = &cobra.Command{
 			return fmt.Errorf("--database flag is required")
 		}
 
-		agentService := agent.NewCheckoutService(&agent.CheckoutConfig{
-			ZFSParentDataset: "tank",
-			PostgresBinPath:  "/usr/lib/postgresql/16/bin",
-			StartPort:        15432,
-			EndPort:          16432,
-		})
+		agentService := agent.NewCheckoutService()
 		initConfig := &agent.InitConfig{
 			Stanza:   stanza,
 			Database: database,
@@ -91,16 +86,8 @@ func runDaemon() error {
 		return fmt.Errorf("failed to load TLS credentials: %w", err)
 	}
 
-	// Create agent service configuration
-	config := &agent.CheckoutConfig{
-		ZFSParentDataset: "tank",
-		PostgresBinPath:  "/usr/lib/postgresql/16/bin",
-		StartPort:        15432,
-		EndPort:          16432,
-	}
-
 	// Create agent service
-	agentService := agent.NewCheckoutService(config)
+	agentService := agent.NewCheckoutService()
 
 	// Create gRPC server with TLS and auth interceptor
 	grpcServer := grpc.NewServer(

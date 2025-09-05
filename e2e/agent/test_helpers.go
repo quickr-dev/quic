@@ -23,14 +23,8 @@ func createRestore(t *testing.T) (*agent.CheckoutService, *agent.InitResult) {
 	// Create a unique dirname for this restore
 	testDirname := fmt.Sprintf("test-restore-%d", time.Now().UnixNano())
 
-	// Create checkout service with test config
-	config := &agent.CheckoutConfig{
-		ZFSParentDataset: "tank",
-		PostgresBinPath:  "/usr/lib/postgresql/16/bin",
-		StartPort:        5433,
-		EndPort:          6433,
-	}
-	service := agent.NewCheckoutService(config)
+	// Create checkout service
+	service := agent.NewCheckoutService()
 
 	// Perform init operation to create restore dataset
 	initConfig := &agent.InitConfig{
