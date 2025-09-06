@@ -37,6 +37,7 @@ var hostSetupCmd = &cobra.Command{
 func init() {
 	hostCmd.AddCommand(hostNewCmd)
 	hostCmd.AddCommand(hostSetupCmd)
+	hostNewCmd.Flags().String("devices", "", "Comma-separated list of device names (e.g., loop10,loop11)")
 	hostSetupCmd.Flags().String("hosts", "", "Comma-separated list of host aliases, IPs, or 'all'")
 }
 
@@ -51,7 +52,6 @@ func runHostNew(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("host IP cannot be empty")
 	}
 
-	fmt.Printf("✓ Testing SSH connection to %s...\n", ip)
 	client, err := ssh.NewClient(ip)
 	if err != nil {
 		return fmt.Errorf("failed to connect to host %s: %w\n\nTroubleshooting:\n• Ensure the host is reachable\n• Verify SSH is running on port 22\n• Check SSH agent is running: ssh-add -l\n• Verify root access: ssh root@%s", ip, err, ip)
@@ -62,35 +62,56 @@ func runHostNew(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("connection test failed: %w", err)
 	}
 
-	fmt.Printf("✓ Verifying root access...\n")
 	if err := client.VerifyRootAccess(); err != nil {
 		return fmt.Errorf("root access verification failed: %w\n\nTroubleshooting:\n• Ensure you can SSH as root: ssh root@%s\n• Or configure passwordless sudo for your user", err, ip)
 	}
 
-	fmt.Printf("✓ Discovering block devices...\n")
 	devices, err := client.ListBlockDevices()
 	if err != nil {
 		return fmt.Errorf("failed to discover block devices: %w\n\nTroubleshooting:\n• Ensure lsblk command is available on the host\n• Verify the host has block devices available", err)
 	}
 
-	availableDevices := client.GetAvailableDevices(devices)
-	if len(availableDevices) == 0 {
-		fmt.Println("\n⚠️  No available block devices found")
-		fmt.Println("\nDiscovered devices:")
-		printDeviceTable(devices)
-		fmt.Println("\nNo available devices. Please, unmount or add storage devices.")
-		return nil
-	}
+	devicesFlag, _ := cmd.Flags().GetString("devices")
+	var selectedDevices []string
 
-	fmt.Println()
-	selectedDevices, err := ui.RunDeviceSelector(devices)
-	if err != nil {
-		return fmt.Errorf("device selection failed: %w", err)
-	}
+	if devicesFlag != "" {
+		// Use specified devices from flag
+		specifiedDevices := strings.Split(devicesFlag, ",")
+		for _, device := range specifiedDevices {
+			device = strings.TrimSpace(device)
+			// Validate that the device exists and is available
+			found := false
+			for _, d := range devices {
+				if d.Name == device && d.Status == ssh.Available {
+					selectedDevices = append(selectedDevices, device)
+					found = true
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("device '%s' not found or not available", device)
+			}
+		}
+	} else {
+		// Interactive device selection
+		availableDevices := client.GetAvailableDevices(devices)
+		if len(availableDevices) == 0 {
+			fmt.Println("\nNo available devices. Please, unmount or add storage devices.")
+			fmt.Println("\nDiscovered devices:")
+			printDeviceTable(devices)
+			return nil
+		}
 
-	if len(selectedDevices) == 0 {
-		fmt.Println("No devices selected. Exiting.")
-		return nil
+		var err error
+		selectedDevices, err = ui.RunDeviceSelector(devices)
+		if err != nil {
+			return fmt.Errorf("device selection failed: %w", err)
+		}
+
+		if len(selectedDevices) == 0 {
+			fmt.Println("No devices selected. Exiting.")
+			return nil
+		}
 	}
 
 	quicConfig, err := config.LoadQuicConfig()
@@ -114,7 +135,6 @@ func runHostNew(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("✓ Added host '%s' (%s) to quic.json\n", host.Alias, ip)
-	fmt.Printf("Selected devices: %s\n", strings.Join(selectedDevices, ", "))
 
 	return nil
 }
@@ -176,7 +196,7 @@ func runHostSetup(cmd *cobra.Command, args []string) error {
 	}
 
 	hostsFlag, _ := cmd.Flags().GetString("hosts")
-	
+
 	if len(quicConfig.Hosts) > 1 && hostsFlag == "" {
 		cmd.PrintErrln("For safety, please specify the hosts to setup, for example:")
 		cmd.PrintErrf("  $ quic host setup --hosts %s\n", quicConfig.Hosts[0].Alias)
@@ -193,11 +213,13 @@ func runHostSetup(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	hostUsernames := make(map[string]string)
 	for _, host := range targetHosts {
 		client, err := ssh.NewClient(host.IP)
 		if err != nil {
 			return fmt.Errorf("failed to connect to host %s: %w", host.IP, err)
 		}
+		hostUsernames[host.IP] = client.Username()
 		client.Close()
 	}
 
@@ -209,7 +231,8 @@ func runHostSetup(cmd *cobra.Command, args []string) error {
 	successCount := 0
 	for _, host := range targetHosts {
 		fmt.Printf("\nSetting up host %s (%s)...\n", host.IP, host.Alias)
-		if err := setupHost(host); err != nil {
+		username := hostUsernames[host.IP]
+		if err := setupHost(host, username); err != nil {
 			fmt.Printf("✗ Host %s setup failed: %v\n", host.IP, err)
 		} else {
 			fmt.Printf("✓ Host %s setup completed successfully\n", host.IP)
@@ -242,14 +265,14 @@ func confirmDestructiveSetup(hosts []config.QuicHost) bool {
 	return scanner.Text() == "ack"
 }
 
-func setupHost(host config.QuicHost) error {
+func setupHost(host config.QuicHost, username string) error {
 	playbookFile, err := writePlaybookToTemp()
 	if err != nil {
 		return fmt.Errorf("failed to write playbook: %w", err)
 	}
 	defer os.Remove(playbookFile)
 
-	inventoryFile, err := createInventoryFile(host)
+	inventoryFile, err := createInventoryFile(host, username)
 	if err != nil {
 		return fmt.Errorf("failed to create inventory: %w", err)
 	}
@@ -274,8 +297,18 @@ func writePlaybookToTemp() (string, error) {
 	return tmpFile, os.WriteFile(tmpFile, []byte(baseSetupPlaybook), 0644)
 }
 
-func createInventoryFile(host config.QuicHost) (string, error) {
-	inventoryContent := fmt.Sprintf("[quic_hosts]\n%s ansible_user=root\n", host.IP)
+func createInventoryFile(host config.QuicHost, username string) (string, error) {
+	// Check if we're in test mode (test SSH key exists)
+	testKeyPath := filepath.Join(os.TempDir(), "quic-test-ssh", "id_rsa")
+	sshArgs := "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+	if _, err := os.Stat(testKeyPath); err == nil {
+		sshArgs += " -i " + testKeyPath
+	}
+
+	inventoryContent := fmt.Sprintf(`[quic_hosts]
+%s ansible_user=%s ansible_become=yes ansible_ssh_common_args='%s'
+`, host.IP, username, sshArgs)
 	inventoryFile := filepath.Join(os.TempDir(), "quic-inventory-"+uuid.New().String())
 	return inventoryFile, os.WriteFile(inventoryFile, []byte(inventoryContent), 0600)
 }

@@ -115,6 +115,8 @@ func getQuicConfigPath() string {
 }
 
 func createDefaultQuicConfig() (*QuicConfig, error) {
+	fmt.Printf("Initializing quic.json")
+
 	config := &QuicConfig{
 		Schema:    QuicSchemaURL,
 		Hosts:     []QuicHost{},

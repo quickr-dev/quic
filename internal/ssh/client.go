@@ -1,24 +1,22 @@
 package ssh
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
-
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 )
 
 type Client struct {
-	client   *ssh.Client
-	config   *ssh.ClientConfig
+	host     string
 	username string
 	useSudo  bool
+	sshArgs  []string
 }
 
 type BlockDevice struct {
@@ -44,85 +42,60 @@ type lsblkOutput struct {
 }
 
 func NewClient(host string) (*Client, error) {
-	authMethods := []ssh.AuthMethod{}
-	
-	// Try SSH agent first
-	if socket := os.Getenv("SSH_AUTH_SOCK"); socket != "" {
-		if conn, err := net.Dial("unix", socket); err == nil {
-			agentClient := agent.NewClient(conn)
-			authMethods = append(authMethods, ssh.PublicKeysCallback(agentClient.Signers))
-		}
-	}
-	
-	// Try to load default SSH keys if agent is not available
-	if len(authMethods) == 0 {
-		if homeDir, err := os.UserHomeDir(); err == nil {
-			keyPaths := []string{
-				filepath.Join(homeDir, ".ssh", "id_rsa"),
-				filepath.Join(homeDir, ".ssh", "id_ed25519"),
-				filepath.Join(homeDir, ".ssh", "id_ecdsa"),
-			}
-			
-			for _, keyPath := range keyPaths {
-				if key, err := os.ReadFile(keyPath); err == nil {
-					if signer, err := ssh.ParsePrivateKey(key); err == nil {
-						authMethods = append(authMethods, ssh.PublicKeys(signer))
-						break
-					}
-				}
-			}
-		}
-	}
-	
-	// If no auth methods available, return error
-	if len(authMethods) == 0 {
-		return nil, fmt.Errorf("no SSH authentication methods available. Please ensure SSH agent is running or SSH keys are properly configured")
-	}
-
 	// Try connecting as different users (ubuntu first, then root)
 	users := []string{"ubuntu", "root"}
-	var lastErr error
 	
-	for _, user := range users {
-		config := &ssh.ClientConfig{
-			User:            user,
-			Auth:            authMethods,
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-			Timeout:         10 * time.Second,
-		}
-
-		conn, err := ssh.Dial("tcp", net.JoinHostPort(host, "22"), config)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-
-		return &Client{
-			client:   conn,
-			config:   config,
-			username: user,
-			useSudo:  user != "root",
-		}, nil
+	baseSSHArgs := []string{
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"-o", "ConnectTimeout=10",
+		"-o", "BatchMode=yes", // Don't prompt for passwords
+		"-o", "LogLevel=ERROR", // Suppress SSH warnings
 	}
 	
-	return nil, fmt.Errorf("failed to connect to %s as any user (tried: %s): %w", host, strings.Join(users, ", "), lastErr)
+	// Check if we have a test SSH key (for e2e tests)
+	testKeyPath := filepath.Join(os.TempDir(), "quic-test-ssh", "id_rsa")
+	if _, err := os.Stat(testKeyPath); err == nil {
+		baseSSHArgs = append(baseSSHArgs, "-i", testKeyPath)
+	}
+	
+	for _, user := range users {
+		sshArgs := append(baseSSHArgs, "-l", user)
+		
+		// Test connection
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		cmd := exec.CommandContext(ctx, "ssh", append(sshArgs, host, "echo", "test")...)
+		err := cmd.Run()
+		cancel()
+		
+		if err == nil {
+			return &Client{
+				host:     host,
+				username: user,
+				useSudo:  user != "root",
+				sshArgs:  sshArgs,
+			}, nil
+		}
+	}
+	
+	return nil, fmt.Errorf("failed to connect to %s as any user (tried: %s): SSH authentication failed. Please ensure SSH keys are configured or SSH agent is running", host, strings.Join(users, ", "))
 }
 
 func (c *Client) Close() error {
-	if c.client != nil {
-		return c.client.Close()
-	}
+	// No persistent connection to close when using system ssh
 	return nil
 }
 
-func (c *Client) TestConnection() error {
-	session, err := c.client.NewSession()
-	if err != nil {
-		return fmt.Errorf("failed to create session: %w", err)
-	}
-	defer session.Close()
+func (c *Client) Username() string {
+	return c.username
+}
 
-	if err := session.Run("echo 'connection test'"); err != nil {
+func (c *Client) TestConnection() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	
+	cmd := exec.CommandContext(ctx, "ssh", append(c.sshArgs, c.host, "echo", "connection test")...)
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("connection test failed: %w", err)
 	}
 
@@ -130,17 +103,25 @@ func (c *Client) TestConnection() error {
 }
 
 func (c *Client) runCommand(cmd string) ([]byte, error) {
+	return c.runCommandWithStderr(cmd, false)
+}
+
+func (c *Client) runCommandWithStderr(cmd string, includeStderr bool) ([]byte, error) {
 	if c.useSudo {
 		cmd = "sudo " + cmd
 	}
 	
-	session, err := c.client.NewSession()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create session: %w", err)
-	}
-	defer session.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	
-	return session.CombinedOutput(cmd)
+	sshCmd := exec.CommandContext(ctx, "ssh", append(c.sshArgs, c.host, cmd)...)
+	
+	if includeStderr {
+		return sshCmd.CombinedOutput()
+	} else {
+		// Use Output() to only capture stdout, ignore stderr SSH warnings
+		return sshCmd.Output()
+	}
 }
 
 func (c *Client) VerifyRootAccess() error {
@@ -176,7 +157,7 @@ func (c *Client) VerifyRootAccess() error {
 }
 
 func (c *Client) ListBlockDevices() ([]BlockDevice, error) {
-	output, err := c.runCommand("lsblk --json -o NAME,SIZE,FSSIZE,MOUNTPOINTS -b")
+	output, err := c.runCommandWithStderr("lsblk --json -o NAME,SIZE,FSSIZE,MOUNTPOINTS -b", true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list block devices: %w", err)
 	}
