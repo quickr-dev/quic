@@ -16,7 +16,16 @@ const (
 	BaseSnapshot = "base"
 )
 
-func setupTestVM(t *testing.T) string {
+func ensureVMRunning(t *testing.T) string {
+	if vmExists(t, VMName) {
+		startVM(t, VMName)
+		return getVMIP(t, VMName)
+	}
+
+	return recreateVM(t)
+}
+
+func recreateVM(t *testing.T) string {
 	if vmExists(t, VMName) {
 		if snapshotExists(t, VMName, BaseSnapshot) {
 			stopVM(t, VMName)

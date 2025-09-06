@@ -4,29 +4,16 @@ import (
 	"encoding/json"
 	"os"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	vmIP        string
-	vmSetupOnce sync.Once
-)
-
-func ensureVM(t *testing.T) {
-	vmSetupOnce.Do(func() {
-		vmIP = setupTestVM(t)
-	})
-}
-
 func TestQuicHostNew(t *testing.T) {
-	ensureVM(t)
-	cleanupQuicConfig(t)
-	defer cleanupQuicConfig(t)
+	vmIP := ensureVMRunning(t)
 
 	t.Run("successful host addition", func(t *testing.T) {
+		cleanupQuicConfig(t)
 		output, err := runQuicCommand(t, "host", "new", vmIP, "--devices", "loop10,loop11")
 
 		require.NoError(t, err, "quic host new should succeed\nOutput: %s", output)
@@ -92,7 +79,7 @@ func TestQuicHostNew(t *testing.T) {
 }
 
 func TestQuicHostSetup(t *testing.T) {
-	ensureVM(t)
+	vmIP := ensureVMRunning(t)
 
 	t.Run("setup with single host", func(t *testing.T) {
 		cleanupQuicConfig(t)
@@ -134,15 +121,7 @@ func TestQuicHostSetup(t *testing.T) {
 	// })
 }
 
-func validateZFSSetup(t *testing.T, vmIP string) {
-	t.Helper()
-
-	// Check if ZFS tank dataset exists
-
-}
-
 func TestQuicHostCommands(t *testing.T) {
-
 	t.Run("host new requires IP argument", func(t *testing.T) {
 		output, err := runQuicCommand(t, "host", "new")
 
