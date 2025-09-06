@@ -171,22 +171,26 @@ func runHostSetup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no hosts configured in quic.json")
 	}
 
-	if err := validateQuicJson(quicConfig); err != nil {
+	if err := validateQuicJson(cmd, quicConfig); err != nil {
 		return err
 	}
 
 	hostsFlag, _ := cmd.Flags().GetString("hosts")
-	targetHosts, err := filterHosts(quicConfig.Hosts, hostsFlag)
+	
+	if len(quicConfig.Hosts) > 1 && hostsFlag == "" {
+		cmd.PrintErrln("For safety, please specify the hosts to setup, for example:")
+		cmd.PrintErrf("  $ quic host setup --hosts %s\n", quicConfig.Hosts[0].Alias)
+		cmd.PrintErrf("  $ quic host setup --hosts %s\n", quicConfig.Hosts[0].IP)
+		cmd.PrintErrln("  $ quic host setup --hosts all")
+		return nil
+	}
+
+	targetHosts, err := filterHosts(cmd, quicConfig.Hosts, hostsFlag)
 	if err != nil {
 		return err
 	}
-
-	if len(quicConfig.Hosts) > 1 && hostsFlag == "" {
-		return fmt.Errorf("for safety, please specify the hosts to setup, for example:\n"+
-			"  $ quic host setup --hosts %s\n"+
-			"  $ quic host setup --hosts %s\n"+
-			"  $ quic host setup --hosts all",
-			quicConfig.Hosts[0].Alias, quicConfig.Hosts[0].IP)
+	if targetHosts == nil {
+		return nil
 	}
 
 	for _, host := range targetHosts {
@@ -284,18 +288,19 @@ func convertDevicesToPaths(devices []string) string {
 	return strings.Join(paths, ",")
 }
 
-func validateQuicJson(quicConfig *config.QuicConfig) error {
+func validateQuicJson(cmd *cobra.Command, quicConfig *config.QuicConfig) error {
 	aliases := make(map[string]bool)
 	for _, host := range quicConfig.Hosts {
 		if aliases[host.Alias] {
-			return fmt.Errorf("duplicate host alias '%s' found in quic.json. Host aliases must be unique", host.Alias)
+			cmd.PrintErrf("Duplicate host alias '%s' found in quic.json. Host aliases must be unique.\n", host.Alias)
+			return nil
 		}
 		aliases[host.Alias] = true
 	}
 	return nil
 }
 
-func filterHosts(allHosts []config.QuicHost, hostsFlag string) ([]config.QuicHost, error) {
+func filterHosts(cmd *cobra.Command, allHosts []config.QuicHost, hostsFlag string) ([]config.QuicHost, error) {
 	if hostsFlag == "" {
 		return allHosts, nil
 	}
@@ -320,7 +325,12 @@ func filterHosts(allHosts []config.QuicHost, hostsFlag string) ([]config.QuicHos
 		}
 
 		if !found {
-			return nil, fmt.Errorf("host '%s' not found in quic.json", spec)
+			cmd.PrintErrf("Host '%s' not found in quic.json.\n", spec)
+			cmd.PrintErrln("Available hosts:")
+			for _, host := range allHosts {
+				cmd.PrintErrf("  %s (%s)\n", host.Alias, host.IP)
+			}
+			return nil, nil
 		}
 	}
 
