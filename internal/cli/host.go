@@ -1,8 +1,8 @@
 package cli
 
 import (
-	_ "embed"
 	"bufio"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
@@ -30,13 +30,14 @@ var hostNewCmd = &cobra.Command{
 
 var hostSetupCmd = &cobra.Command{
 	Use:   "setup",
-	Short: "Setup infrastructure on all configured hosts",
+	Short: "Setup infrastructure on configured hosts",
 	RunE:  runHostSetup,
 }
 
 func init() {
 	hostCmd.AddCommand(hostNewCmd)
 	hostCmd.AddCommand(hostSetupCmd)
+	hostSetupCmd.Flags().String("hosts", "", "Comma-separated list of host aliases, IPs, or 'all'")
 }
 
 //go:embed assets/base-setup.yml
@@ -44,7 +45,7 @@ var baseSetupPlaybook string
 
 func runHostNew(cmd *cobra.Command, args []string) error {
 	ip := args[0]
-	
+
 	// Validate IP format
 	if ip == "" {
 		return fmt.Errorf("host IP cannot be empty")
@@ -126,12 +127,12 @@ func printDeviceTable(devices []ssh.BlockDevice) {
 		if device.FSSize != nil {
 			used = formatSize(*device.FSSize)
 		}
-		
+
 		status := string(device.Status)
 		if device.Reason != "" {
 			status += fmt.Sprintf(" (%s)", device.Reason)
 		}
-		
+
 		fmt.Printf("  %-20s %-10s %-10s %-15s\n", device.Name, size, used, status)
 	}
 }
@@ -140,18 +141,18 @@ func formatSize(bytes int64) string {
 	if bytes == 0 {
 		return ""
 	}
-	
+
 	const unit = 1024
 	if bytes < unit {
 		return fmt.Sprintf("%dB", bytes)
 	}
-	
+
 	div, exp := int64(unit), 0
 	for n := bytes / unit; n >= unit; n /= unit {
 		div *= unit
 		exp++
 	}
-	
+
 	units := []string{"K", "M", "G", "T", "P", "E"}
 	return fmt.Sprintf("%.1f%s", float64(bytes)/float64(div), units[exp])
 }
@@ -170,7 +171,25 @@ func runHostSetup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no hosts configured in quic.json")
 	}
 
-	for _, host := range quicConfig.Hosts {
+	if err := validateQuicJson(quicConfig); err != nil {
+		return err
+	}
+
+	hostsFlag, _ := cmd.Flags().GetString("hosts")
+	targetHosts, err := filterHosts(quicConfig.Hosts, hostsFlag)
+	if err != nil {
+		return err
+	}
+
+	if len(quicConfig.Hosts) > 1 && hostsFlag == "" {
+		return fmt.Errorf("for safety, please specify the hosts to setup, for example:\n"+
+			"  $ quic host setup --hosts %s\n"+
+			"  $ quic host setup --hosts %s\n"+
+			"  $ quic host setup --hosts all",
+			quicConfig.Hosts[0].Alias, quicConfig.Hosts[0].IP)
+	}
+
+	for _, host := range targetHosts {
 		client, err := ssh.NewClient(host.IP)
 		if err != nil {
 			return fmt.Errorf("failed to connect to host %s: %w", host.IP, err)
@@ -178,13 +197,13 @@ func runHostSetup(cmd *cobra.Command, args []string) error {
 		client.Close()
 	}
 
-	if !confirmDestructiveSetup(quicConfig.Hosts) {
+	if !confirmDestructiveSetup(targetHosts) {
 		fmt.Println("Setup aborted.")
 		return nil
 	}
 
 	successCount := 0
-	for _, host := range quicConfig.Hosts {
+	for _, host := range targetHosts {
 		fmt.Printf("\nSetting up host %s (%s)...\n", host.IP, host.Alias)
 		if err := setupHost(host); err != nil {
 			fmt.Printf("✗ Host %s setup failed: %v\n", host.IP, err)
@@ -194,7 +213,7 @@ func runHostSetup(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	failedCount := len(quicConfig.Hosts) - successCount
+	failedCount := len(targetHosts) - successCount
 	fmt.Printf("\nSetup completed: %d successful, %d failed\n", successCount, failedCount)
 	return nil
 }
@@ -211,9 +230,9 @@ func checkAnsibleInstalled() error {
 }
 
 func confirmDestructiveSetup(hosts []config.QuicHost) bool {
-	fmt.Println("WARNING: This will format devices and permanently delete all data in all quic.json hosts.")
+	fmt.Println("WARNING: This will format devices and permanently delete all of their data.")
 	fmt.Print("Type 'ack' to proceed: ")
-	
+
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Scan()
 	return scanner.Text() == "ack"
@@ -239,10 +258,10 @@ func setupHost(host config.QuicHost) error {
 		"-i", inventoryFile,
 		"--extra-vars", extraVars,
 		playbookFile)
-	
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	
+
 	return cmd.Run()
 }
 
@@ -265,3 +284,45 @@ func convertDevicesToPaths(devices []string) string {
 	return strings.Join(paths, ",")
 }
 
+func validateQuicJson(quicConfig *config.QuicConfig) error {
+	aliases := make(map[string]bool)
+	for _, host := range quicConfig.Hosts {
+		if aliases[host.Alias] {
+			return fmt.Errorf("duplicate host alias '%s' found in quic.json. Host aliases must be unique", host.Alias)
+		}
+		aliases[host.Alias] = true
+	}
+	return nil
+}
+
+func filterHosts(allHosts []config.QuicHost, hostsFlag string) ([]config.QuicHost, error) {
+	if hostsFlag == "" {
+		return allHosts, nil
+	}
+
+	if hostsFlag == "all" {
+		return allHosts, nil
+	}
+
+	hostSpecs := strings.Split(hostsFlag, ",")
+	var targetHosts []config.QuicHost
+
+	for _, spec := range hostSpecs {
+		spec = strings.TrimSpace(spec)
+		found := false
+
+		for _, host := range allHosts {
+			if host.Alias == spec || host.IP == spec {
+				targetHosts = append(targetHosts, host)
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return nil, fmt.Errorf("host '%s' not found in quic.json", spec)
+		}
+	}
+
+	return targetHosts, nil
+}
