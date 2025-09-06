@@ -135,30 +135,6 @@ func setupTestDisks(t *testing.T, vmName string) {
 	}
 }
 
-func runQuicCommand(t *testing.T, args ...string) (string, error) {
-	cmdArgs := append([]string{"../../bin/quic"}, args...)
-	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
-	output, err := cmd.CombinedOutput()
-	return string(output), err
-}
-
-func runShellCommand(t *testing.T, command string, args ...string) string {
-	cmd := exec.Command(command, args...)
-	output, err := cmd.CombinedOutput()
-	require.NoError(t, err, string(output))
-
-	return string(output)
-}
-
-func cleanupQuicConfig(t *testing.T) {
-	os.Remove("quic.json")
-}
-
-func requireFile(t *testing.T, path string) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Fatalf("Expected file %s to exist", path)
-	}
-}
 
 func snapshotExists(t *testing.T, vmName, snapshotName string) bool {
 	output := runShellCommand(t, "multipass", "info", vmName, "--snapshots")
