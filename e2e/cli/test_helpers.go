@@ -12,29 +12,30 @@ import (
 )
 
 const (
-	VMName = "quic-host"
+	VMName       = "quic-host"
+	BaseSnapshot = "base"
 )
 
 func setupTestVM(t *testing.T) string {
 	if vmExists(VMName) {
-		t.Logf("Deleting existing VM %s...", VMName)
-		err := exec.Command("multipass", "delete", "--purge", VMName).Run()
-		require.NoError(t, err, err)
+		if snapshotExists(t, VMName, BaseSnapshot) {
+			stopVM(t, VMName)
+			restoreVM(t, VMName, BaseSnapshot)
+			startVM(t, VMName)
+			setupTestDisks(t, VMName)
+			return getVMIP(t, VMName)
+		} else {
+			deleteVM(t, VMName)
+		}
 	}
 
-	t.Logf("Creating VM %s...", VMName)
-	err := exec.Command("timeout", "60", "multipass", "launch", "--name", VMName, "--disk", "15G", "--memory", "1G", "--cpus", "1").Run()
-	require.NoError(t, err)
-
+	launchVM(t, VMName)
 	setupSSHAccess(t, VMName)
-
-	t.Logf("Setting up disks...")
 	setupTestDisks(t, VMName)
+	createSnapshot(t, VMName, BaseSnapshot)
 
-	t.Logf("Getting VM IP...")
 	ip := getVMIP(t, VMName)
-
-	t.Logf("VM ready: %s", getVMIP(t, VMName))
+	t.Logf("VM ready: %s", ip)
 	return ip
 }
 
@@ -140,6 +141,8 @@ func runQuicCommand(t *testing.T, args ...string) (string, error) {
 func runShellCommand(t *testing.T, command string) (string, error) {
 	cmd := exec.Command("bash", "-c", command)
 	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(output))
+
 	return string(output), err
 }
 
@@ -151,4 +154,48 @@ func requireFile(t *testing.T, path string) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		t.Fatalf("Expected file %s to exist", path)
 	}
+}
+
+func snapshotExists(t *testing.T, vmName, snapshotName string) bool {
+	output, err := exec.Command("multipass", "info", vmName, "--snapshots").Output()
+	require.NoError(t, err, output)
+	return strings.Contains(string(output), snapshotName)
+}
+
+func stopVM(t *testing.T, vmName string) {
+	t.Logf("Stopping VM %s...", vmName)
+	_, err := runShellCommand(t, fmt.Sprintf("multipass stop %s", vmName))
+	require.NoError(t, err)
+}
+
+func startVM(t *testing.T, vmName string) {
+	t.Logf("Starting VM %s...", vmName)
+	_, err := runShellCommand(t, fmt.Sprintf("multipass start %s", vmName))
+	require.NoError(t, err)
+}
+
+func launchVM(t *testing.T, vmName string) {
+	t.Logf("Creating VM %s...", vmName)
+	_, err := runShellCommand(t, fmt.Sprintf("timeout 60 multipass launch --name %s --disk 15G --memory 1G --cpus 1", vmName))
+	require.NoError(t, err)
+}
+
+func deleteVM(t *testing.T, vmName string) {
+	t.Logf("Deleting existing VM %s (no base snapshot found)...", vmName)
+	_, err := runShellCommand(t, fmt.Sprintf("multipass delete --purge %s", vmName))
+	require.NoError(t, err)
+}
+
+func restoreVM(t *testing.T, vmName, snapshotName string) {
+	t.Logf("Restoring VM %s from snapshot %s...", vmName, snapshotName)
+	_, err := runShellCommand(t, fmt.Sprintf("multipass restore %s.%s --destructive", vmName, snapshotName))
+	require.NoError(t, err)
+}
+
+func createSnapshot(t *testing.T, vmName, snapshotName string) {
+	t.Logf("Creating base snapshot...")
+	stopVM(t, vmName)
+	_, err := runShellCommand(t, fmt.Sprintf("multipass snapshot %s --name %s", vmName, snapshotName))
+	require.NoError(t, err)
+	startVM(t, vmName)
 }

@@ -99,15 +99,15 @@ func TestQuicHostSetup(t *testing.T) {
 		cleanupQuicConfig(t)
 
 		// add vm as host in quic.json
-		_, err := runQuicCommand(t, "host", "new", vmIP, "--devices", "loop10,loop11")
-		require.NoError(t, err)
+		output, err := runQuicCommand(t, "host", "new", vmIP, "--devices", "loop10,loop11")
+		require.NoError(t, err, output)
 
 		// run quic setup
-		_, err = runShellCommand(t, "echo 'ack' | ../../bin/quic host setup")
-		require.NoError(t, err)
+		output, err = runShellCommand(t, "echo 'ack' | ../../bin/quic host setup")
+		require.NoError(t, err, output)
 
 		// validate VM state
-		output, err := runShellCommand(t, fmt.Sprintf("multipass exec %s -- zfs list tank", VMName))
+		output, err = runShellCommand(t, fmt.Sprintf("multipass exec %s -- zfs list tank", VMName))
 		require.NoError(t, err, output)
 	})
 
