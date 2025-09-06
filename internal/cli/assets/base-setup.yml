@@ -1,0 +1,258 @@
+---
+- name: Quic Base System Setup
+  hosts: quic_hosts
+  become: yes
+  gather_facts: yes
+  vars:
+    quicd_target_path: "/usr/local/bin/quicd"
+    cert_path: "/etc/quic/certs"
+    tank_data_dir: "/tank/data"
+    quicd_grpc_port: "8443"
+    # Required user-provided vars
+    zfs_devices: "{{ zfs_devices | mandatory('Please provide ZFS devices, e.g. -e zfs_devices=/dev/nvme0n1,/dev/nvme1n1') }}"
+    pg_version: "{{ pg_version | mandatory('Please provide postgresql version, e.g. -e pg_version=16') }}"
+
+  tasks:
+    # ===============================================
+    # Firewall Setup
+    # ===============================================
+    - name: Open required firewall ports
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "22" # SSH
+        - "{{ quicd_grpc_port }}"
+
+    - name: Ensure UFW is enabled
+      ufw:
+        state: enabled
+
+    # ===============================================
+    # Package Installation
+    # ===============================================
+    - name: Update package cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - zfsutils-linux
+          - "postgresql-{{ pg_version }}"
+          - postgresql-contrib
+          - pgbackrest
+        state: present
+
+    - name: Stop and disable default PostgreSQL service
+      systemd:
+        name: postgresql
+        state: stopped
+        enabled: false
+
+    # ===============================================
+    # System Setup
+    # ===============================================
+    - name: Create quic system user
+      user:
+        name: quic
+        system: yes
+        shell: /bin/false
+        home: /var/lib/quic
+        create_home: yes
+        groups: postgres
+        append: yes
+
+    - name: Create Quic log directory
+      file:
+        path: "/var/log/quic"
+        state: directory
+        owner: quic
+        group: quic
+        mode: "0755"
+
+    - name: Setup quic user sudoers permissions for system operations
+      copy:
+        content: |
+          # Quic agent permissions for system operations (as root)
+          quic ALL=(root) NOPASSWD: /sbin/zfs, /sbin/zpool, /usr/sbin/ufw, /usr/bin/pgrep, /bin/systemctl, /usr/bin/tee, /bin/rm -f /etc/systemd/system/quic-clone-*.service
+
+          # Allow quic to run postgres commands as postgres user
+          quic ALL=(postgres) NOPASSWD: /usr/lib/postgresql/*/bin/*, /bin/sh
+        dest: /etc/sudoers.d/quic-agent
+        mode: "0440"
+        validate: "visudo -cf %s"
+
+    - name: Ensure /etc/quic directory exists
+      file:
+        path: /etc/quic
+        state: directory
+        owner: quic
+        group: postgres
+        mode: "0755"
+
+    - name: Create TLS certificate directory
+      file:
+        path: "{{ cert_path }}"
+        state: directory
+        owner: quic
+        group: postgres
+        mode: "0755"
+
+    - name: Generate self-signed TLS certificate
+      command: |
+        openssl req -x509 -newkey rsa:2048 -keyout {{ cert_path }}/server.key -out {{ cert_path }}/server.crt -days 365 -nodes \
+          -subj "/CN=quic-server" \
+          -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+      args:
+        creates: "{{ cert_path }}/server.crt"
+
+    - name: Set certificate file permissions
+      file:
+        path: "{{ item.path }}"
+        owner: "{{ item.owner }}"
+        group: postgres
+        mode: "{{ item.mode }}"
+      loop:
+        - {
+            path: "{{ cert_path }}/server.crt",
+            owner: "postgres",
+            mode: "0644",
+          }
+        - { path: "{{ cert_path }}/server.key", owner: "root", mode: "0640" }
+
+    # ===============================================
+    # ZFS Encryption Setup
+    # ===============================================
+    - name: Generate ZFS encryption key
+      command: openssl rand -out /etc/quic/zfs-key 32
+      args:
+        creates: /etc/quic/zfs-key
+
+    - name: Set ZFS key permissions
+      file:
+        path: /etc/quic/zfs-key
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Check if tank pool exists and is encrypted
+      shell: zpool status tank && zfs get encryption tank
+      register: tank_status
+      failed_when: false
+      changed_when: false
+
+    - name: Set up encrypted tank pool if needed
+      block:
+        - name: Build ZFS device list
+          set_fact:
+            zfs_device_list: "{{ zfs_devices.split(',') | join(' ') }}"
+
+        - name: Create encrypted tank pool
+          shell: |
+            zpool create tank {{ zfs_device_list }} \
+              -O encryption=aes-256-gcm \
+              -O keylocation=file:///etc/quic/zfs-key \
+              -O keyformat=raw
+            zfs set recordsize=8K tank
+            zfs set compression=lz4 tank
+            zfs set atime=off tank
+            zfs set logbias=throughput tank
+          args:
+            creates: /tank
+
+        - name: Set postgres ownership on tank pool
+          command: chown postgres:postgres /tank
+
+        - name: Create data directory in tank
+          file:
+            path: "{{ tank_data_dir }}"
+            state: directory
+            owner: postgres
+            group: postgres
+            mode: "0700"
+      when: tank_status.rc != 0 or 'aes' not in tank_status.stdout
+
+    - name: Create ZFS auto-unlock service
+      copy:
+        content: |
+          [Unit]
+          Description=Auto-unlock encrypted ZFS datasets
+          After=zfs-import.target
+          Before=postgresql.service quicd.service
+
+          [Service]
+          Type=oneshot
+          ExecStart=/bin/bash -c 'zfs load-key -a 2>/dev/null || true; zfs mount -a'
+          User=root
+          RemainAfterExit=yes
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/zfs-unlock.service
+        mode: "0644"
+
+    - name: Enable ZFS unlock service
+      systemd:
+        name: zfs-unlock
+        enabled: yes
+        daemon_reload: yes
+
+    # ===============================================
+    # Quicd Installation
+    # ===============================================
+    - name: Download latest quicd binary from GitHub releases
+      get_url:
+        url: "https://github.com/quickr-dev/quic/releases/latest/download/quicd-linux-amd64"
+        dest: "{{ quicd_target_path }}"
+        owner: root
+        group: root
+        mode: "0755"
+        force: yes
+      notify: restart quicd
+
+    # ===============================================
+    # Systemd Services
+    # ===============================================
+    - name: Create Quic gRPC systemd service
+      copy:
+        content: |
+          [Unit]
+          Description=Quicd
+          Documentation=https://github.com/quickr-dev/quic
+          After=network.target zfs-unlock.service
+
+          [Service]
+          Type=simple
+          User=quic
+          WorkingDirectory=/tank
+          ExecStart={{ quicd_target_path }}
+          Restart=always
+          RestartSec=5
+          StandardOutput=journal
+          StandardError=journal
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/quicd.service
+        mode: "0644"
+      notify: restart quicd
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start quicd service
+      systemd:
+        name: quicd
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: restart quicd
+      systemd:
+        name: quicd
+        state: restarted
+        daemon_reload: yes

@@ -1,9 +1,15 @@
 package cli
 
 import (
+	_ "embed"
+	"bufio"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/quickr-dev/quic/internal/config"
 	"github.com/quickr-dev/quic/internal/ssh"
 	"github.com/quickr-dev/quic/internal/ui"
@@ -22,9 +28,19 @@ var hostNewCmd = &cobra.Command{
 	RunE:  runHostNew,
 }
 
+var hostSetupCmd = &cobra.Command{
+	Use:   "setup",
+	Short: "Setup infrastructure on all configured hosts",
+	RunE:  runHostSetup,
+}
+
 func init() {
 	hostCmd.AddCommand(hostNewCmd)
+	hostCmd.AddCommand(hostSetupCmd)
 }
+
+//go:embed assets/base-setup.yml
+var baseSetupPlaybook string
 
 func runHostNew(cmd *cobra.Command, args []string) error {
 	ip := args[0]
@@ -138,5 +154,114 @@ func formatSize(bytes int64) string {
 	
 	units := []string{"K", "M", "G", "T", "P", "E"}
 	return fmt.Sprintf("%.1f%s", float64(bytes)/float64(div), units[exp])
+}
+
+func runHostSetup(cmd *cobra.Command, args []string) error {
+	if err := checkAnsibleInstalled(); err != nil {
+		return err
+	}
+
+	quicConfig, err := config.LoadQuicConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load quic config: %w", err)
+	}
+
+	if len(quicConfig.Hosts) == 0 {
+		return fmt.Errorf("no hosts configured in quic.json")
+	}
+
+	for _, host := range quicConfig.Hosts {
+		client, err := ssh.NewClient(host.IP)
+		if err != nil {
+			return fmt.Errorf("failed to connect to host %s: %w", host.IP, err)
+		}
+		client.Close()
+	}
+
+	if !confirmDestructiveSetup(quicConfig.Hosts) {
+		fmt.Println("Setup aborted.")
+		return nil
+	}
+
+	successCount := 0
+	for _, host := range quicConfig.Hosts {
+		fmt.Printf("\nSetting up host %s (%s)...\n", host.IP, host.Alias)
+		if err := setupHost(host); err != nil {
+			fmt.Printf("✗ Host %s setup failed: %v\n", host.IP, err)
+		} else {
+			fmt.Printf("✓ Host %s setup completed successfully\n", host.IP)
+			successCount++
+		}
+	}
+
+	failedCount := len(quicConfig.Hosts) - successCount
+	fmt.Printf("\nSetup completed: %d successful, %d failed\n", successCount, failedCount)
+	return nil
+}
+
+func checkAnsibleInstalled() error {
+	_, err := exec.LookPath("ansible-playbook")
+	if err != nil {
+		return fmt.Errorf("ansible-playbook not found. Please install Ansible:\n" +
+			"  macOS: brew install ansible\n" +
+			"  Ubuntu: sudo apt install ansible\n" +
+			"  pip: pip install ansible")
+	}
+	return nil
+}
+
+func confirmDestructiveSetup(hosts []config.QuicHost) bool {
+	fmt.Println("WARNING: This will format devices and permanently delete all data in all quic.json hosts.")
+	fmt.Print("Type 'ack' to proceed: ")
+	
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	return scanner.Text() == "ack"
+}
+
+func setupHost(host config.QuicHost) error {
+	playbookFile, err := writePlaybookToTemp()
+	if err != nil {
+		return fmt.Errorf("failed to write playbook: %w", err)
+	}
+	defer os.Remove(playbookFile)
+
+	inventoryFile, err := createInventoryFile(host)
+	if err != nil {
+		return fmt.Errorf("failed to create inventory: %w", err)
+	}
+	defer os.Remove(inventoryFile)
+
+	devicePaths := convertDevicesToPaths(host.Devices)
+	extraVars := fmt.Sprintf("zfs_devices=%s pg_version=16", devicePaths)
+
+	cmd := exec.Command("ansible-playbook",
+		"-i", inventoryFile,
+		"--extra-vars", extraVars,
+		playbookFile)
+	
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	
+	return cmd.Run()
+}
+
+func writePlaybookToTemp() (string, error) {
+	tmpFile := filepath.Join(os.TempDir(), "quic-base-setup-"+uuid.New().String()+".yml")
+	return tmpFile, os.WriteFile(tmpFile, []byte(baseSetupPlaybook), 0644)
+}
+
+func createInventoryFile(host config.QuicHost) (string, error) {
+	inventoryContent := fmt.Sprintf("[quic_hosts]\n%s ansible_user=root\n", host.IP)
+	inventoryFile := filepath.Join(os.TempDir(), "quic-inventory-"+uuid.New().String())
+	return inventoryFile, os.WriteFile(inventoryFile, []byte(inventoryContent), 0600)
+}
+
+func convertDevicesToPaths(devices []string) string {
+	paths := make([]string, len(devices))
+	for i, device := range devices {
+		paths[i] = "/dev/" + device
+	}
+	return strings.Join(paths, ",")
 }
 
