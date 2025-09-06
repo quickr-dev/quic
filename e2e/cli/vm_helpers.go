@@ -12,38 +12,38 @@ import (
 )
 
 const (
-	VMName       = "quic-host"
-	BaseSnapshot = "base"
+	SnapshotName   = "base"
+	QuicHostVMName = "quic-host"
 )
 
-func ensureVMRunning(t *testing.T) string {
-	if vmExists(t, VMName) {
-		startVM(t, VMName)
-		return getVMIP(t, VMName)
+func ensureVMRunning(t *testing.T, vmName string) string {
+	if vmExists(t, vmName) {
+		startVM(t, vmName)
+		return getVMIP(t, vmName)
 	}
 
-	return recreateVM(t)
+	return recreateVM(t, vmName)
 }
 
-func recreateVM(t *testing.T) string {
-	if vmExists(t, VMName) {
-		if snapshotExists(t, VMName, BaseSnapshot) {
-			stopVM(t, VMName)
-			restoreVM(t, VMName, BaseSnapshot)
-			startVM(t, VMName)
-			setupTestDisks(t, VMName)
-			return getVMIP(t, VMName)
+func recreateVM(t *testing.T, vmName string) string {
+	if vmExists(t, vmName) {
+		if snapshotExists(t, vmName, SnapshotName) {
+			stopVM(t, vmName)
+			restoreVM(t, vmName, SnapshotName)
+			startVM(t, vmName)
+			setupTestDisks(t, vmName)
+			return getVMIP(t, vmName)
 		} else {
-			deleteVM(t, VMName)
+			deleteVM(t, vmName)
 		}
 	}
 
-	launchVM(t, VMName)
-	setupSSHAccess(t, VMName)
-	setupTestDisks(t, VMName)
-	createSnapshot(t, VMName, BaseSnapshot)
+	launchVM(t, vmName)
+	setupSSHAccess(t, vmName)
+	setupTestDisks(t, vmName)
+	createSnapshot(t, vmName, SnapshotName)
 
-	ip := getVMIP(t, VMName)
+	ip := getVMIP(t, vmName)
 	return ip
 }
 
@@ -134,7 +134,6 @@ func setupTestDisks(t *testing.T, vmName string) {
 		runShellCommand(t, cmdArgs[0], cmdArgs[1:]...)
 	}
 }
-
 
 func snapshotExists(t *testing.T, vmName, snapshotName string) bool {
 	output := runShellCommand(t, "multipass", "info", vmName, "--snapshots")
