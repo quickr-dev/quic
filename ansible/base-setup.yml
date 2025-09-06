@@ -203,9 +203,16 @@
     # ===============================================
     # Quicd Installation
     # ===============================================
+    - name: Set architecture mapping for binary download
+      set_fact:
+        arch_map:
+          x86_64: amd64
+          aarch64: arm64
+        arch: "{{ arch_map[ansible_architecture] | default('amd64') }}"
+
     - name: Download latest quicd binary from GitHub releases
       get_url:
-        url: "https://github.com/quickr-dev/quic/releases/latest/download/quicd-linux-amd64"
+        url: "https://github.com/quickr-dev/quic/releases/latest/download/quicd-linux-{{ arch }}"
         dest: "{{ quicd_target_path }}"
         owner: root
         group: root
