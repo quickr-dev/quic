@@ -17,7 +17,7 @@ const (
 )
 
 func setupTestVM(t *testing.T) string {
-	if vmExists(VMName) {
+	if vmExists(t, VMName) {
 		if snapshotExists(t, VMName, BaseSnapshot) {
 			stopVM(t, VMName)
 			restoreVM(t, VMName, BaseSnapshot)
@@ -35,20 +35,18 @@ func setupTestVM(t *testing.T) string {
 	createSnapshot(t, VMName, BaseSnapshot)
 
 	ip := getVMIP(t, VMName)
-	t.Logf("VM ready: %s", ip)
 	return ip
 }
 
-func vmExists(name string) bool {
+func vmExists(t *testing.T, name string) bool {
 	cmd := exec.Command("multipass", "info", name)
 	return cmd.Run() == nil
 }
 
 func getVMIP(t *testing.T, name string) string {
-	output, err := exec.Command("bash", "-c", fmt.Sprintf("multipass info %s | grep IPv4 | awk '{print $2}'", name)).Output()
-	require.NoError(t, err)
+	output := runShellCommand(t, "bash", "-c", fmt.Sprintf("multipass info %s | grep IPv4 | awk '{print $2}'", name))
 
-	ip := strings.TrimSpace(string(output))
+	ip := strings.TrimSpace(output)
 	require.True(t, ip != "")
 
 	return ip
@@ -62,8 +60,7 @@ func setupSSHAccess(t *testing.T, vmName string) {
 	pubKeyPath := keyPath + ".pub"
 
 	// Add our test public key to VM's authorized_keys
-	err := exec.Command("multipass", "transfer", pubKeyPath, vmName+":/tmp/test_key.pub").Run()
-	require.NoError(t, err, err)
+	runShellCommand(t, "multipass", "transfer", pubKeyPath, vmName+":/tmp/test_key.pub")
 
 	commands := [][]string{
 		{"multipass", "exec", vmName, "--", "bash", "-c", "cat /tmp/test_key.pub >> /home/ubuntu/.ssh/authorized_keys"},
@@ -72,8 +69,7 @@ func setupSSHAccess(t *testing.T, vmName string) {
 	}
 
 	for _, cmdArgs := range commands {
-		err := exec.Command(cmdArgs[0], cmdArgs[1:]...).Run()
-		require.NoError(t, err, err)
+		runShellCommand(t, cmdArgs[0], cmdArgs[1:]...)
 	}
 
 	// Add the test key to SSH agent for the quic CLI to use
@@ -89,8 +85,7 @@ func createTestSSHKey(t *testing.T) string {
 	// Only generate if it doesn't exist
 	keyPath := filepath.Join(testDir, "id_rsa")
 	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
-		err := exec.Command("ssh-keygen", "-t", "rsa", "-b", "2048", "-f", keyPath, "-N", "").Run()
-		require.NoError(t, err, err)
+		runShellCommand(t, "ssh-keygen", "-t", "rsa", "-b", "2048", "-f", keyPath, "-N", "")
 		t.Logf("Generated test SSH key at %s", keyPath)
 	}
 
@@ -127,23 +122,23 @@ func setupTestDisks(t *testing.T, vmName string) {
 	}
 
 	for _, cmdArgs := range commands {
-		cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
-		require.NoError(t, cmd.Run())
+		runShellCommand(t, cmdArgs[0], cmdArgs[1:]...)
 	}
 }
 
 func runQuicCommand(t *testing.T, args ...string) (string, error) {
-	cmd := exec.Command("../../bin/quic", args...)
+	cmdArgs := append([]string{"../../bin/quic"}, args...)
+	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
 
-func runShellCommand(t *testing.T, command string) (string, error) {
-	cmd := exec.Command("bash", "-c", command)
+func runShellCommand(t *testing.T, command string, args ...string) string {
+	cmd := exec.Command(command, args...)
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(output))
 
-	return string(output), err
+	return string(output)
 }
 
 func cleanupQuicConfig(t *testing.T) {
@@ -157,45 +152,38 @@ func requireFile(t *testing.T, path string) {
 }
 
 func snapshotExists(t *testing.T, vmName, snapshotName string) bool {
-	output, err := exec.Command("multipass", "info", vmName, "--snapshots").Output()
-	require.NoError(t, err, output)
-	return strings.Contains(string(output), snapshotName)
+	output := runShellCommand(t, "multipass", "info", vmName, "--snapshots")
+	return strings.Contains(output, snapshotName)
 }
 
 func stopVM(t *testing.T, vmName string) {
 	t.Logf("Stopping VM %s...", vmName)
-	_, err := runShellCommand(t, fmt.Sprintf("multipass stop %s", vmName))
-	require.NoError(t, err)
+	runShellCommand(t, "multipass", "stop", vmName)
 }
 
 func startVM(t *testing.T, vmName string) {
 	t.Logf("Starting VM %s...", vmName)
-	_, err := runShellCommand(t, fmt.Sprintf("multipass start %s", vmName))
-	require.NoError(t, err)
+	runShellCommand(t, "multipass", "start", vmName)
 }
 
 func launchVM(t *testing.T, vmName string) {
 	t.Logf("Creating VM %s...", vmName)
-	_, err := runShellCommand(t, fmt.Sprintf("timeout 60 multipass launch --name %s --disk 15G --memory 1G --cpus 1", vmName))
-	require.NoError(t, err)
+	runShellCommand(t, "timeout", "60", "multipass", "launch", "--name", vmName, "--disk", "15G", "--memory", "1G", "--cpus", "1")
 }
 
 func deleteVM(t *testing.T, vmName string) {
 	t.Logf("Deleting existing VM %s (no base snapshot found)...", vmName)
-	_, err := runShellCommand(t, fmt.Sprintf("multipass delete --purge %s", vmName))
-	require.NoError(t, err)
+	runShellCommand(t, "multipass", "delete", "--purge", vmName)
 }
 
 func restoreVM(t *testing.T, vmName, snapshotName string) {
 	t.Logf("Restoring VM %s from snapshot %s...", vmName, snapshotName)
-	_, err := runShellCommand(t, fmt.Sprintf("multipass restore %s.%s --destructive", vmName, snapshotName))
-	require.NoError(t, err)
+	runShellCommand(t, "multipass", "restore", vmName+"."+snapshotName, "--destructive")
 }
 
 func createSnapshot(t *testing.T, vmName, snapshotName string) {
 	t.Logf("Creating base snapshot...")
 	stopVM(t, vmName)
-	_, err := runShellCommand(t, fmt.Sprintf("multipass snapshot %s --name %s", vmName, snapshotName))
-	require.NoError(t, err)
+	runShellCommand(t, "multipass", "snapshot", vmName, "--name", snapshotName)
 	startVM(t, vmName)
 }

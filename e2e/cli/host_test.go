@@ -2,7 +2,6 @@ package e2e_cli
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -103,12 +102,10 @@ func TestQuicHostSetup(t *testing.T) {
 		require.NoError(t, err, output)
 
 		// run quic setup
-		output, err = runShellCommand(t, "echo 'ack' | ../../bin/quic host setup")
-		require.NoError(t, err, output)
+		output = runShellCommand(t, "bash", "-c", "echo 'ack' | ../../bin/quic host setup")
 
 		// validate VM state
-		output, err = runShellCommand(t, fmt.Sprintf("multipass exec %s -- zfs list tank", VMName))
-		require.NoError(t, err, output)
+		output = runShellCommand(t, "multipass", "exec", VMName, "--", "zfs", "list", "tank")
 	})
 
 	// t.Run("setup abort", func(t *testing.T) {
