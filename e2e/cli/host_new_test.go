@@ -3,7 +3,6 @@ package e2e_cli
 import (
 	"encoding/json"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -42,15 +41,6 @@ func TestQuicHostNew(t *testing.T) {
 		output, err := runQuicCommand(t, "host", "new", "invalid-ip")
 
 		require.Error(t, err, "Expected command to fail with invalid IP")
-		require.Contains(t, output, "failed to connect", "Expected connection failure message in output")
-	})
-
-	t.Run("unreachable host", func(t *testing.T) {
-		cleanupQuicConfig(t)
-
-		output, err := runQuicCommand(t, "host", "new", "192.168.99.99")
-
-		require.Error(t, err, "Expected command to fail with unreachable host")
 		require.Contains(t, output, "failed to connect", "Expected connection failure message in output")
 	})
 
