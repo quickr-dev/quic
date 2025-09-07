@@ -203,8 +203,23 @@ func buildAndDeployAgent(t *testing.T, vmName string) {
 	t.Helper()
 	t.Log("Reinstalling agent...")
 
-	// TODO: detect architecture
-	runShell(t, "timeout", "5s", "bash", "-c", "cd ../../ && GOOS=linux GOARCH=arm64 go build -o bin/quicd-linux ./cmd/quicd")
+	// Detect VM architecture
+	archOutput := runShell(t, "multipass", "exec", vmName, "--", "uname", "-m")
+	vmArch := strings.TrimSpace(archOutput)
+	
+	// Map VM architecture to Go GOARCH
+	var goArch string
+	switch vmArch {
+	case "x86_64":
+		goArch = "amd64"
+	case "aarch64":
+		goArch = "arm64"
+	default:
+		t.Fatalf("Unsupported VM architecture: %s", vmArch)
+	}
+	
+	t.Logf("Detected VM architecture: %s (GOARCH=%s)", vmArch, goArch)
+	runShell(t, "timeout", "5s", "bash", "-c", fmt.Sprintf("cd ../../ && GOOS=linux GOARCH=%s go build -o bin/quicd-linux ./cmd/quicd", goArch))
 	runShell(t, "timeout", "5s", "multipass", "transfer", "../../bin/quicd-linux", vmName+":/tmp/quicd")
 	runShell(t, "timeout", "5s", "bash", "-c", fmt.Sprintf("multipass exec %s -- sudo systemctl stop quicd || true", vmName))
 	runShell(t, "timeout", "5s", "multipass", "exec", vmName, "--", "sudo", "mv", "/tmp/quicd", "/usr/local/bin/quicd")
