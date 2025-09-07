@@ -44,6 +44,7 @@ jobs:
           GOOS=darwin GOARCH=amd64 go build -o quicd-darwin-amd64 ./cmd/quicd
           GOOS=darwin GOARCH=arm64 go build -o quicd-darwin-arm64 ./cmd/quicd
           GOOS=linux GOARCH=amd64 go build -o quicd-linux-amd64 ./cmd/quicd
+          GOOS=linux GOARCH=arm64 go build -o quicd-linux-arm64 ./cmd/quicd
 
       - name: Generate checksums
         run: |
@@ -60,6 +61,7 @@ jobs:
             quicd-darwin-amd64
             quicd-darwin-arm64
             quicd-linux-amd64
+            quicd-linux-arm64
             checksums.txt
           generate_release_notes: true
         env:
