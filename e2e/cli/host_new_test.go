@@ -13,7 +13,7 @@ func TestQuicHostNew(t *testing.T) {
 
 	t.Run("successful host addition", func(t *testing.T) {
 		cleanupQuicConfig(t)
-		output, err := runQuicCommand(t, "host", "new", vmIP, "--devices", "loop10,loop11")
+		output, err := runQuic(t, "host", "new", vmIP, "--devices", "loop10,loop11")
 
 		require.NoError(t, err, "quic host new should succeed\nOutput: %s", output)
 
@@ -38,14 +38,14 @@ func TestQuicHostNew(t *testing.T) {
 	t.Run("invalid IP address", func(t *testing.T) {
 		cleanupQuicConfig(t)
 
-		output, err := runQuicCommand(t, "host", "new", "invalid-ip")
+		output, err := runQuic(t, "host", "new", "invalid-ip")
 
 		require.Error(t, err, "Expected command to fail with invalid IP")
 		require.Contains(t, output, "failed to connect", "Expected connection failure message in output")
 	})
 
 	t.Run("host new requires IP argument", func(t *testing.T) {
-		output, err := runQuicCommand(t, "host", "new")
+		output, err := runQuic(t, "host", "new")
 
 		require.Error(t, err, "Expected command to fail without IP argument")
 		require.Contains(t, output, "accepts 1 arg(s), received 0", "Expected argument requirement message in output")

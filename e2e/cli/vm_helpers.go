@@ -52,7 +52,7 @@ func vmExists(t *testing.T, name string) bool {
 }
 
 func getVMIP(t *testing.T, name string) string {
-	output := runShellCommand(t, "bash", "-c", fmt.Sprintf("multipass info %s | grep IPv4 | awk '{print $2}'", name))
+	output := runShell(t, "bash", "-c", fmt.Sprintf("multipass info %s | grep IPv4 | awk '{print $2}'", name))
 
 	ip := strings.TrimSpace(output)
 	require.True(t, ip != "")
@@ -68,7 +68,7 @@ func setupSSHAccess(t *testing.T, vmName string) {
 	pubKeyPath := keyPath + ".pub"
 
 	// Add our test public key to VM's authorized_keys
-	runShellCommand(t, "multipass", "transfer", pubKeyPath, vmName+":/tmp/test_key.pub")
+	runShell(t, "multipass", "transfer", pubKeyPath, vmName+":/tmp/test_key.pub")
 
 	commands := [][]string{
 		{"multipass", "exec", vmName, "--", "bash", "-c", "cat /tmp/test_key.pub >> /home/ubuntu/.ssh/authorized_keys"},
@@ -77,7 +77,7 @@ func setupSSHAccess(t *testing.T, vmName string) {
 	}
 
 	for _, cmdArgs := range commands {
-		runShellCommand(t, cmdArgs[0], cmdArgs[1:]...)
+		runShell(t, cmdArgs[0], cmdArgs[1:]...)
 	}
 
 	// Add the test key to SSH agent for the quic CLI to use
@@ -93,7 +93,7 @@ func createTestSSHKey(t *testing.T) string {
 	// Only generate if it doesn't exist
 	keyPath := filepath.Join(testDir, "id_rsa")
 	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
-		runShellCommand(t, "ssh-keygen", "-t", "rsa", "-b", "2048", "-f", keyPath, "-N", "")
+		runShell(t, "ssh-keygen", "-t", "rsa", "-b", "2048", "-f", keyPath, "-N", "")
 		t.Logf("Generated test SSH key at %s", keyPath)
 	}
 
@@ -130,61 +130,51 @@ func setupTestDisks(t *testing.T, vmName string) {
 	}
 
 	for _, cmdArgs := range commands {
-		runShellCommand(t, cmdArgs[0], cmdArgs[1:]...)
+		runShell(t, cmdArgs[0], cmdArgs[1:]...)
 	}
 }
 
 func snapshotExists(t *testing.T, vmName, snapshotName string) bool {
-	output := runShellCommand(t, "multipass", "info", vmName, "--snapshots")
+	output := runShell(t, "multipass", "info", vmName, "--snapshots")
 	return strings.Contains(output, snapshotName)
 }
 
 func stopVM(t *testing.T, vmName string) {
 	t.Logf("Stopping VM %s...", vmName)
-	runShellCommand(t, "multipass", "stop", vmName)
+	runShell(t, "multipass", "stop", vmName)
 }
 
 func startVM(t *testing.T, vmName string) {
 	t.Logf("Starting VM %s...", vmName)
-	runShellCommand(t, "multipass", "start", vmName)
+	runShell(t, "multipass", "start", vmName)
 }
 
 func launchVM(t *testing.T, vmName string) {
 	t.Logf("Creating VM %s...", vmName)
-	runShellCommand(t, "timeout", "60", "multipass", "launch", "--name", vmName, "--disk", "15G", "--memory", "1G", "--cpus", "1")
+	runShell(t, "timeout", "60", "multipass", "launch", "--name", vmName, "--disk", "15G", "--memory", "1G", "--cpus", "1")
 }
 
 func deleteVM(t *testing.T, vmName string) {
-	t.Logf("Deleting existing VM %s (no base snapshot found)...", vmName)
-	cmd := exec.Command("multipass", "delete", "--purge", vmName)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Logf("VM deletion output: %s", string(output))
-		// Allow deletion to fail if VM doesn't exist
-		if strings.Contains(string(output), "does not exist") {
-			t.Logf("VM %s does not exist, skipping deletion", vmName)
-			return
-		}
-		require.NoError(t, err, string(output))
-	}
+	t.Logf("Deleting VM %s...", vmName)
+	runShell(t, "multipass", "delete", "--purge", vmName, "||", "true")
 }
 
 func restoreVM(t *testing.T, vmName, snapshotName string) {
 	t.Logf("Restoring VM %s from snapshot %s...", vmName, snapshotName)
-	runShellCommand(t, "multipass", "restore", vmName+"."+snapshotName, "--destructive")
+	runShell(t, "multipass", "restore", vmName+"."+snapshotName, "--destructive")
 }
 
 func createSnapshot(t *testing.T, vmName, snapshotName string) {
 	t.Logf("Creating base snapshot...")
 	stopVM(t, vmName)
-	runShellCommand(t, "multipass", "snapshot", vmName, "--name", snapshotName)
+	runShell(t, "multipass", "snapshot", vmName, "--name", snapshotName)
 	startVM(t, vmName)
 }
 
 func cloneVM(t *testing.T, sourceVM, destVM string) {
 	t.Logf("Cloning VM %s to %s...", sourceVM, destVM)
 	stopVM(t, sourceVM)
-	runShellCommand(t, "multipass", "clone", sourceVM, "--name", destVM)
+	runShell(t, "multipass", "clone", sourceVM, "--name", destVM)
 	startVM(t, sourceVM)
 	startVM(t, destVM)
 }
