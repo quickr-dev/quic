@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	SnapshotName     = "base"
-	QuicHostVMName   = "quic-host"
-	QuicHost2VMName  = "quic-host2"
+	SnapshotName    = "base"
+	QuicHostVMName  = "quic-host"
+	QuicHost2VMName = "quic-host2"
 )
 
 func ensureVMRunning(t *testing.T, vmName string) string {
@@ -27,22 +27,19 @@ func ensureVMRunning(t *testing.T, vmName string) string {
 }
 
 func recreateVM(t *testing.T, vmName string) string {
-	if vmExists(t, vmName) {
-		if snapshotExists(t, vmName, SnapshotName) {
-			stopVM(t, vmName)
-			restoreVM(t, vmName, SnapshotName)
-			startVM(t, vmName)
-			setupTestDisks(t, vmName)
-			return getVMIP(t, vmName)
-		} else {
-			deleteVM(t, vmName)
-		}
-	}
+	// if snapshotExists(t, vmName, SnapshotName) {
+	// 	stopVM(t, vmName)
+	// 	restoreVM(t, vmName, SnapshotName)
+	// 	startVM(t, vmName)
+	// 	setupTestDisks(t, vmName)
+	// 	return getVMIP(t, vmName)
+	// }
 
+	deleteVM(t, vmName)
 	launchVM(t, vmName)
 	setupSSHAccess(t, vmName)
 	setupTestDisks(t, vmName)
-	createSnapshot(t, vmName, SnapshotName)
+	// createSnapshot(t, vmName, SnapshotName)
 
 	ip := getVMIP(t, vmName)
 	return ip
