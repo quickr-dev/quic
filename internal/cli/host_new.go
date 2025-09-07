@@ -19,6 +19,7 @@ var hostNewCmd = &cobra.Command{
 
 func init() {
 	hostNewCmd.Flags().String("devices", "", "Comma-separated list of device names (e.g., loop10,loop11)")
+	hostNewCmd.Flags().String("alias", "default", "Alias for the host (default: 'default')")
 }
 
 func runHostNew(cmd *cobra.Command, args []string) error {
@@ -96,9 +97,11 @@ func runHostNew(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load quic config: %w", err)
 	}
 
+	aliasFlag, _ := cmd.Flags().GetString("alias")
+
 	host := config.QuicHost{
 		IP:               ip,
-		Alias:            "default",
+		Alias:            aliasFlag,
 		EncryptionAtRest: "localFile",
 		Devices:          selectedDevices,
 	}

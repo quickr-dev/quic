@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	SnapshotName   = "base"
-	QuicHostVMName = "quic-host"
+	SnapshotName     = "base"
+	QuicHostVMName   = "quic-host"
+	QuicHost2VMName  = "quic-host2"
 )
 
 func ensureVMRunning(t *testing.T, vmName string) string {
@@ -170,4 +171,24 @@ func createSnapshot(t *testing.T, vmName, snapshotName string) {
 	stopVM(t, vmName)
 	runShellCommand(t, "multipass", "snapshot", vmName, "--name", snapshotName)
 	startVM(t, vmName)
+}
+
+func cloneVM(t *testing.T, sourceVM, destVM string) {
+	t.Logf("Cloning VM %s to %s...", sourceVM, destVM)
+	stopVM(t, sourceVM)
+	runShellCommand(t, "multipass", "clone", sourceVM, "--name", destVM)
+	startVM(t, sourceVM)
+	startVM(t, destVM)
+}
+
+func ensureClonedVM(t *testing.T, sourceVM, destVM string) string {
+	if vmExists(t, destVM) {
+		startVM(t, destVM)
+		return getVMIP(t, destVM)
+	}
+
+	// Clone from source VM
+	cloneVM(t, sourceVM, destVM)
+	setupTestDisks(t, destVM)
+	return getVMIP(t, destVM)
 }

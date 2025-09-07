@@ -1,6 +1,7 @@
 package e2e_cli
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,8 +12,6 @@ func TestQuicHostSetup(t *testing.T) {
 
 	t.Run("setup with single host", func(t *testing.T) {
 		cleanupQuicConfig(t)
-
-		// add vm as host in quic.json
 		output, err := runQuicCommand(t, "host", "new", vmIP, "--devices", "loop10,loop11")
 		require.NoError(t, err, output)
 
@@ -24,7 +23,7 @@ func TestQuicHostSetup(t *testing.T) {
 			// Verify tank pool exists with specific properties
 			output = runShellCommand(t, "multipass", "exec", QuicHostVMName, "--", "zfs", "list", "-H", "-o", "name,mountpoint", "tank")
 			require.Equal(t, "tank\t/tank\n", output, "tank dataset should be named 'tank' and mounted at '/tank'")
-			
+
 			// Verify tank is encrypted with correct algorithm
 			output = runShellCommand(t, "multipass", "exec", QuicHostVMName, "--", "zfs", "get", "-H", "-o", "value", "encryption", "tank")
 			require.Equal(t, "aes-256-gcm\n", output, "tank should be encrypted with aes-256-gcm")
@@ -114,28 +113,109 @@ func TestQuicHostSetup(t *testing.T) {
 		})
 	})
 
-	// t.Run("setup abort", func(t *testing.T) {
-	// 	cmd := "echo 'no' | ../../bin/quic host setup"
+	t.Run("setup abort", func(t *testing.T) {
+		cleanupQuicConfig(t)
+		output, err := runQuicCommand(t, "host", "new", vmIP, "--devices", "loop10,loop11")
+		require.NoError(t, err, output)
 
-	// 	_, _ = runShellCommand(t, cmd)
+		// Test aborting setup with 'no' input
+		output = runShellCommand(t, "bash", "-c", "echo 'no' | ../../bin/quic host setup")
+		require.Contains(t, output, "Setup aborted", "Setup should be aborted when user enters 'no'")
+	})
 
-	// })
+	t.Run("setup with specific host alias", func(t *testing.T) {
+		cleanupQuicConfig(t)
+		output, err := runQuicCommand(t, "host", "new", vmIP, "--devices", "loop10,loop11", "--alias", "test-host")
+		require.NoError(t, err, output)
 
-	// t.Run("setup with specific host", func(t *testing.T) {
-	// 	cmd := "echo 'ack' | ../../bin/quic host setup --hosts default"
+		// Setup with specific host alias
+		output = runShellCommand(t, "bash", "-c", "echo 'ack' | ../../bin/quic host setup --hosts test-host")
+		require.Contains(t, output, "Setup completed:", "Setup should complete successfully with specific host alias")
+	})
 
-	// 	_, _ = runShellCommand(t, cmd)
+	t.Run("setup with specific host ip", func(t *testing.T) {
+		cleanupQuicConfig(t)
+		output, err := runQuicCommand(t, "host", "new", vmIP, "--devices", "loop10,loop11")
+		require.NoError(t, err, output)
 
-	// })
+		// Setup with specific host IP
+		output = runShellCommand(t, "bash", "-c", fmt.Sprintf("echo 'ack' | ../../bin/quic host setup --hosts %s", vmIP))
+		require.Contains(t, output, "Setup completed:", "Setup should complete successfully with specific host IP")
 
-	// t.Run("setup with invalid host", func(t *testing.T) {
-	// 	_, _ = runQuicCommand(t, "host", "setup", "--hosts", "nonexistent")
-	// })
+		// Validate ZFS dataset exists
+		output = runShellCommand(t, "multipass", "exec", QuicHostVMName, "--", "zfs", "list", "-H", "-o", "name", "tank")
+		require.Equal(t, "tank\n", output, "tank dataset should exist after setup")
+	})
 
-	// t.Run("setup no hosts configured", func(t *testing.T) {
-	// 	cleanupQuicConfig(t)
+	t.Run("setup with invalid host", func(t *testing.T) {
+		cleanupQuicConfig(t)
+		output, err := runQuicCommand(t, "host", "new", vmIP, "--devices", "loop10,loop11")
+		require.NoError(t, err, output)
 
-	// 	_, _ = runQuicCommand(t, "host", "setup")
+		// Try to setup with non-existent host (should print error but exit successfully)
+		output, err = runQuicCommand(t, "host", "setup", "--hosts", "nonexistent")
+		require.NoError(t, err, "Command should exit successfully but show error message")
+		require.Contains(t, output, "Host 'nonexistent' not found", "Should show error for non-existent host")
+	})
 
-	// })
+	t.Run("setup no hosts configured", func(t *testing.T) {
+		cleanupQuicConfig(t)
+
+		// Try to setup with no hosts configured
+		output, err := runQuicCommand(t, "host", "setup")
+		require.Error(t, err, "Setup should fail with no hosts configured")
+		require.Contains(t, output, "no hosts configured in quic.json", "Should show error for no hosts configured")
+	})
+
+	t.Run("setup with multiple hosts configured requires --hosts", func(t *testing.T) {
+		cleanupQuicConfig(t)
+		cloneVMIP := ensureClonedVM(t, QuicHostVMName, QuicHost2VMName)
+		
+		// Add two hosts with different aliases
+		output, err := runQuicCommand(t, "host", "new", vmIP, "--devices", "loop10,loop11", "--alias", "host1")
+		require.NoError(t, err, output)
+		output, err = runQuicCommand(t, "host", "new", cloneVMIP, "--devices", "loop10,loop11", "--alias", "host2")
+		require.NoError(t, err, output)
+
+		// Try setup without specifying hosts - should prompt for safety
+		output, err = runQuicCommand(t, "host", "setup")
+		require.NoError(t, err, "Command should succeed but prompt for host specification")
+		require.Contains(t, output, "For safety, please specify the hosts to setup", "Should prompt to specify hosts for safety")
+	})
+
+	t.Run("sets up multiple hosts with --hosts all", func(t *testing.T) {
+		cleanupQuicConfig(t)
+		cloneVMIP := ensureClonedVM(t, QuicHostVMName, QuicHost2VMName)
+		
+		// Add two hosts with different aliases
+		output, err := runQuicCommand(t, "host", "new", vmIP, "--devices", "loop10,loop11", "--alias", "host1")
+		require.NoError(t, err, output)
+		output, err = runQuicCommand(t, "host", "new", cloneVMIP, "--devices", "loop10,loop11", "--alias", "host2")
+		require.NoError(t, err, output)
+
+		// Setup all hosts
+		output = runShellCommand(t, "bash", "-c", "echo 'ack' | ../../bin/quic host setup --hosts all")
+		require.Contains(t, output, "Setup completed:", "Setup should complete for all hosts")
+
+		// Validate ZFS dataset exists on both VMs
+		output = runShellCommand(t, "multipass", "exec", QuicHostVMName, "--", "zfs", "list", "-H", "-o", "name", "tank")
+		require.Equal(t, "tank\n", output, "tank dataset should exist on first host")
+		
+		output = runShellCommand(t, "multipass", "exec", QuicHost2VMName, "--", "zfs", "list", "-H", "-o", "name", "tank")
+		require.Equal(t, "tank\n", output, "tank dataset should exist on second host")
+	})
+
+	t.Run("duplicate alias validation", func(t *testing.T) {
+		cleanupQuicConfig(t)
+		cloneVMIP := ensureClonedVM(t, QuicHostVMName, QuicHost2VMName)
+		
+		// Add first host
+		output, err := runQuicCommand(t, "host", "new", vmIP, "--devices", "loop10,loop11", "--alias", "samealias")
+		require.NoError(t, err, output)
+		
+		// Try to add second host with same alias (should fail)
+		output, err = runQuicCommand(t, "host", "new", cloneVMIP, "--devices", "loop10,loop11", "--alias", "samealias")
+		require.Error(t, err, "Second host with same alias should fail")
+		require.Contains(t, output, "host with alias samealias already exists", "Should show duplicate alias error")
+	})
 }
