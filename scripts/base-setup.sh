@@ -53,25 +53,25 @@ for device_path in "${DEVICE_ARRAY[@]}"; do
     if [ -b "$device_path" ]; then
         # It's a block device - do block device checks
         echo "Using block device: $device_path"
-        
+
         # Check for existing partitions
         if lsblk -n -o NAME "$device_name" 2>/dev/null | grep -q "├\|└"; then
             echo "Safety failure: Device $device_path has existing partitions"
             echo "Please wipe the device: wipefs -a $device_path && dd if=/dev/zero of=$device_path bs=1M count=100"
             exit 1
         fi
-        
+
         # Check for filesystem signatures
         if blkid "$device_path" 2>/dev/null; then
             echo "Safety failure: Device $device_path has existing filesystem"
             echo "Please wipe the device: wipefs -a $device_path && dd if=/dev/zero of=$device_path bs=1M count=100"
             exit 1
         fi
-        
+
     elif [ -f "$device_path" ]; then
         # It's a regular file - just check it exists and has reasonable size
         echo "Using file: $device_path"
-        
+
     else
         echo "Error: $device_path is neither a block device nor a regular file"
         exit 1
@@ -89,7 +89,7 @@ if [ -f "/var/lib/quic/quic/ansible/base-setup.yml" ]; then
     PLAYBOOK_PATH="/var/lib/quic/quic/ansible/base-setup.yml"
 else
     echo "Downloading base-setup.yml from GitHub"
-    curl -fsSL https://raw.githubusercontent.com/quickr-dev/quic/main/ansible/base-setup.yml -o base-setup.yml
+    curl -fsSL https://raw.githubusercontent.com/quickr-dev/quic/refs/heads/main/internal/cli/assets/base-setup.yml -o base-setup.yml
     PLAYBOOK_PATH="base-setup.yml"
 fi
 
