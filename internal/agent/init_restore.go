@@ -87,13 +87,11 @@ func (s *AgentService) InitRestore(config *InitConfig) (*InitResult, error) {
 		return nil, fmt.Errorf("writing metadata: %w", err)
 	}
 
-	// Start the PostgreSQL service
-	if err := startPostgreSQLService(serviceName); err != nil {
+	if err := startPostgreService(serviceName); err != nil {
 		return nil, fmt.Errorf("starting PostgreSQL service: %w", err)
 	}
 
-	// Wait for PostgreSQL to be ready
-	if err := waitForPostgreSQLReady(port, 60*time.Second); err != nil {
+	if err := waitForPostgreSQLReady(port, 10*time.Second); err != nil {
 		return nil, fmt.Errorf("waiting for PostgreSQL to be ready: %w", err)
 	}
 
@@ -146,12 +144,10 @@ WantedBy=multi-user.target
 		return fmt.Errorf("writing systemd service file: %w", err)
 	}
 
-	// Reload systemd daemon
 	if err := exec.Command("sudo", "systemctl", "daemon-reload").Run(); err != nil {
 		return fmt.Errorf("reloading systemd daemon: %w", err)
 	}
 
-	// Enable the service
 	if err := exec.Command("sudo", "systemctl", "enable", serviceName).Run(); err != nil {
 		return fmt.Errorf("enabling systemd service: %w", err)
 	}
@@ -159,29 +155,22 @@ WantedBy=multi-user.target
 	return nil
 }
 
-// startPostgreSQLService starts the PostgreSQL systemd service
-func startPostgreSQLService(serviceName string) error {
+func startPostgreService(serviceName string) error {
 	if err := exec.Command("sudo", "systemctl", "start", serviceName).Run(); err != nil {
 		return fmt.Errorf("starting systemd service %s: %w", serviceName, err)
 	}
 	return nil
 }
 
-// waitForPostgreSQLReady waits for PostgreSQL to accept connections
 func waitForPostgreSQLReady(port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 5*time.Second)
-		if err == nil {
-			conn.Close()
-			// Additional check: try to connect with pg_isready
-			cmd := exec.Command("sudo", "-u", "postgres", "pg_isready", "-p", fmt.Sprintf("%d", port))
-			if cmd.Run() == nil {
-				return nil
-			}
+		cmd := exec.Command(pgIsReadyPath(PgVersion), "-p", fmt.Sprintf("%d", port))
+		if cmd.Run() == nil {
+			return nil
 		}
-		time.Sleep(2 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 	}
 
 	return fmt.Errorf("PostgreSQL not ready after %v timeout", timeout)
