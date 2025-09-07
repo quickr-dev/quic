@@ -111,7 +111,7 @@ func runHostNew(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save quic config: %w", err)
 	}
 
-	fmt.Printf("✓ Added host '%s' (%s) to quic.json\n", host.Alias, ip)
+	fmt.Printf("Added host '%s' (%s) to quic.json\n", host.Alias, ip)
 
 	return nil
 }

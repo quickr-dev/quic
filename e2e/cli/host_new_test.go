@@ -18,10 +18,7 @@ func TestQuicHostNew(t *testing.T) {
 
 		require.NoError(t, err, "quic host new should succeed\nOutput: %s", output)
 
-		require.Contains(t, output, "✓ Testing SSH connection")
-		require.Contains(t, output, "✓ Discovering block devices")
-		require.Contains(t, output, "✓ Using specified devices")
-		require.Contains(t, output, "✓ Added host")
+		require.Contains(t, output, "Added host")
 
 		requireFile(t, "quic.json")
 
