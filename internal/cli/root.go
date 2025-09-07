@@ -35,6 +35,7 @@ func init() {
 	rootCmd.AddCommand(hostCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(lsCmd)
+	rootCmd.AddCommand(templateCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(updateCmd)
 }

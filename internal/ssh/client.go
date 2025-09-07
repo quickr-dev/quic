@@ -20,20 +20,20 @@ type Client struct {
 }
 
 type BlockDevice struct {
-	Name         string        `json:"name"`
-	Size         int64         `json:"size"`
-	FSSize       *int64        `json:"fssize"`
-	Mountpoints  []string      `json:"mountpoints"`
-	Children     []BlockDevice `json:"children"`
-	Status       DeviceStatus
-	Reason       string
+	Name        string        `json:"name"`
+	Size        int64         `json:"size"`
+	FSSize      *int64        `json:"fssize"`
+	Mountpoints []string      `json:"mountpoints"`
+	Children    []BlockDevice `json:"children"`
+	Status      DeviceStatus
+	Reason      string
 }
 
 type DeviceStatus string
 
 const (
-	Available DeviceStatus = "available"
-	Mounted   DeviceStatus = "mounted"
+	Available  DeviceStatus = "available"
+	Mounted    DeviceStatus = "mounted"
 	SystemDisk DeviceStatus = "system"
 )
 
@@ -44,7 +44,7 @@ type lsblkOutput struct {
 func NewClient(host string) (*Client, error) {
 	// Try connecting as different users (ubuntu first, then root)
 	users := []string{"ubuntu", "root"}
-	
+
 	baseSSHArgs := []string{
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
@@ -52,22 +52,22 @@ func NewClient(host string) (*Client, error) {
 		"-o", "BatchMode=yes", // Don't prompt for passwords
 		"-o", "LogLevel=ERROR", // Suppress SSH warnings
 	}
-	
+
 	// Check if we have a test SSH key (for e2e tests)
 	testKeyPath := filepath.Join(os.TempDir(), "quic-test-ssh", "id_rsa")
 	if _, err := os.Stat(testKeyPath); err == nil {
 		baseSSHArgs = append(baseSSHArgs, "-i", testKeyPath)
 	}
-	
+
 	for _, user := range users {
 		sshArgs := append(baseSSHArgs, "-l", user)
-		
+
 		// Test connection
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		cmd := exec.CommandContext(ctx, "ssh", append(sshArgs, host, "echo", "test")...)
 		err := cmd.Run()
 		cancel()
-		
+
 		if err == nil {
 			return &Client{
 				host:     host,
@@ -77,7 +77,7 @@ func NewClient(host string) (*Client, error) {
 			}, nil
 		}
 	}
-	
+
 	return nil, fmt.Errorf("failed to connect to %s as any user (tried: %s): SSH authentication failed. Please ensure SSH keys are configured or SSH agent is running", host, strings.Join(users, ", "))
 }
 
@@ -93,7 +93,7 @@ func (c *Client) Username() string {
 func (c *Client) TestConnection() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	
+
 	cmd := exec.CommandContext(ctx, "ssh", append(c.sshArgs, c.host, "echo", "connection test")...)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("connection test failed: %w", err)
@@ -110,12 +110,12 @@ func (c *Client) runCommandWithStderr(cmd string, includeStderr bool) ([]byte, e
 	if c.useSudo {
 		cmd = "sudo " + cmd
 	}
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	
+
 	sshCmd := exec.CommandContext(ctx, "ssh", append(c.sshArgs, c.host, cmd)...)
-	
+
 	if includeStderr {
 		return sshCmd.CombinedOutput()
 	} else {
@@ -130,29 +130,29 @@ func (c *Client) VerifyRootAccess() error {
 	if err != nil {
 		return fmt.Errorf("failed to check user: %w", err)
 	}
-	
+
 	currentUser := strings.TrimSpace(string(output))
-	
+
 	// If we're already root, we're good
 	if currentUser == "root" {
 		return nil
 	}
-	
+
 	// If we're using sudo, test that we can become root
 	if c.useSudo {
 		rootOutput, err := c.runCommand("whoami")
 		if err != nil {
 			return fmt.Errorf("failed to verify sudo access: %w", err)
 		}
-		
+
 		sudoUser := strings.TrimSpace(string(rootOutput))
 		if sudoUser != "root" {
 			return fmt.Errorf("sudo access verification failed. Expected root, got: %s", sudoUser)
 		}
-		
+
 		return nil
 	}
-	
+
 	return fmt.Errorf("root access required, current user: %s", currentUser)
 }
 
@@ -171,7 +171,7 @@ func (c *Client) ListBlockDevices() ([]BlockDevice, error) {
 	for _, device := range lsblk.Blockdevices {
 		device = c.analyzeDevice(device)
 		devices = append(devices, device)
-		
+
 		// Add child devices (partitions) if they exist
 		devices = append(devices, c.processChildDevices(device)...)
 	}
@@ -224,8 +224,8 @@ func (c *Client) processChildDevices(parent BlockDevice) []BlockDevice {
 
 func (c *Client) isSystemDevice(name string) bool {
 	systemPatterns := []string{
-		"sr",    // CD/DVD drives
-		"dm-",   // Device mapper
+		"sr",  // CD/DVD drives
+		"dm-", // Device mapper
 	}
 
 	for _, pattern := range systemPatterns {
@@ -246,4 +246,3 @@ func (c *Client) GetAvailableDevices(devices []BlockDevice) []BlockDevice {
 	}
 	return available
 }
-

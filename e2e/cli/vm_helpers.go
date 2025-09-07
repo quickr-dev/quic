@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	SnapshotName    = "base"
-	QuicHostVMName  = "quic-host"
-	QuicHost2VMName = "quic-host2"
+	SnapshotName       = "base"
+	QuicHostVMName     = "quic-host"
+	QuicHost2VMName    = "quic-host2"
+	QuicTemplateVMName = "quic-template"
 )
 
 func ensureVMRunning(t *testing.T, vmName string) string {
@@ -155,7 +156,17 @@ func launchVM(t *testing.T, vmName string) {
 
 func deleteVM(t *testing.T, vmName string) {
 	t.Logf("Deleting existing VM %s (no base snapshot found)...", vmName)
-	runShellCommand(t, "multipass", "delete", "--purge", vmName)
+	cmd := exec.Command("multipass", "delete", "--purge", vmName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Logf("VM deletion output: %s", string(output))
+		// Allow deletion to fail if VM doesn't exist
+		if strings.Contains(string(output), "does not exist") {
+			t.Logf("VM %s does not exist, skipping deletion", vmName)
+			return
+		}
+		require.NoError(t, err, string(output))
+	}
 }
 
 func restoreVM(t *testing.T, vmName, snapshotName string) {

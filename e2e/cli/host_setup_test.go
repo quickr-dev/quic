@@ -175,7 +175,7 @@ func TestQuicHostSetup(t *testing.T) {
 	t.Run("setup with multiple hosts configured requires --hosts", func(t *testing.T) {
 		cleanupQuicConfig(t)
 		cloneVMIP := ensureClonedVM(t, QuicHostVMName, QuicHost2VMName)
-		
+
 		// Add two hosts with different aliases
 		output, err := runQuicCommand(t, "host", "new", vmIP, "--devices", "loop10,loop11", "--alias", "host1")
 		require.NoError(t, err, output)
@@ -191,7 +191,7 @@ func TestQuicHostSetup(t *testing.T) {
 	t.Run("sets up multiple hosts with --hosts all", func(t *testing.T) {
 		cleanupQuicConfig(t)
 		cloneVMIP := ensureClonedVM(t, QuicHostVMName, QuicHost2VMName)
-		
+
 		// Add two hosts with different aliases
 		output, err := runQuicCommand(t, "host", "new", vmIP, "--devices", "loop10,loop11", "--alias", "host1")
 		require.NoError(t, err, output)
@@ -210,11 +210,11 @@ func TestQuicHostSetup(t *testing.T) {
 	t.Run("duplicate alias validation", func(t *testing.T) {
 		cleanupQuicConfig(t)
 		cloneVMIP := ensureClonedVM(t, QuicHostVMName, QuicHost2VMName)
-		
+
 		// Add first host
 		output, err := runQuicCommand(t, "host", "new", vmIP, "--devices", "loop10,loop11", "--alias", "samealias")
 		require.NoError(t, err, output)
-		
+
 		// Try to add second host with same alias (should fail)
 		output, err = runQuicCommand(t, "host", "new", cloneVMIP, "--devices", "loop10,loop11", "--alias", "samealias")
 		require.Error(t, err, "Second host with same alias should fail")

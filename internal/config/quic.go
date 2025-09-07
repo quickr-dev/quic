@@ -80,6 +80,15 @@ func (c *QuicConfig) AddHost(host QuicHost) error {
 	return nil
 }
 
+func (c *QuicConfig) AddTemplate(template Template) error {
+	if err := c.validateTemplate(template); err != nil {
+		return err
+	}
+
+	c.Templates = append(c.Templates, template)
+	return nil
+}
+
 func (c *QuicConfig) validateHost(host QuicHost) error {
 	if host.IP == "" {
 		return fmt.Errorf("host IP cannot be empty")
@@ -104,6 +113,33 @@ func (c *QuicConfig) validateHost(host QuicHost) error {
 	for _, existingHost := range c.Hosts {
 		if existingHost.Alias == host.Alias {
 			return fmt.Errorf("host with alias %s already exists", host.Alias)
+		}
+	}
+
+	return nil
+}
+
+func (c *QuicConfig) validateTemplate(template Template) error {
+	if template.Name == "" {
+		return fmt.Errorf("template name cannot be empty")
+	}
+
+	if template.PGVersion == "" {
+		return fmt.Errorf("template PostgreSQL version cannot be empty")
+	}
+
+	if template.Provider.Name == "" {
+		return fmt.Errorf("template provider name cannot be empty")
+	}
+
+	if template.Provider.ClusterName == "" {
+		return fmt.Errorf("template provider cluster name cannot be empty")
+	}
+
+	// Check for duplicate template names
+	for _, existingTemplate := range c.Templates {
+		if existingTemplate.Name == template.Name {
+			return fmt.Errorf("template with name %s already exists", template.Name)
 		}
 	}
 
