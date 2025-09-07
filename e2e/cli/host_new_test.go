@@ -23,27 +23,17 @@ func TestQuicHostNew(t *testing.T) {
 		requireFile(t, "quic.json")
 
 		configContent, err := os.ReadFile("quic.json")
-		if err != nil {
-			t.Fatalf("Failed to read quic.json: %v", err)
-		}
+		require.NoError(t, err, "Failed to read quic.json")
 
 		var config map[string]interface{}
-		if err := json.Unmarshal(configContent, &config); err != nil {
-			t.Fatalf("Failed to parse quic.json: %v", err)
-		}
+		require.NoError(t, json.Unmarshal(configContent, &config), "Failed to parse quic.json")
 
 		hosts, ok := config["hosts"].([]interface{})
-		if !ok || len(hosts) == 0 {
-			t.Fatal("Expected hosts array in config")
-		}
+		require.True(t, ok && len(hosts) > 0, "Expected hosts array in config")
 
 		host := hosts[0].(map[string]interface{})
-		if host["ip"] != vmIP {
-			t.Errorf("Expected IP %s, got %s", vmIP, host["ip"])
-		}
-		if host["alias"] != "default" {
-			t.Errorf("Expected alias 'default', got %s", host["alias"])
-		}
+		require.Equal(t, vmIP, host["ip"], "Expected IP %s, got %s", vmIP, host["ip"])
+		require.Equal(t, "default", host["alias"], "Expected alias 'default', got %s", host["alias"])
 	})
 
 	t.Run("invalid IP address", func(t *testing.T) {
@@ -51,13 +41,8 @@ func TestQuicHostNew(t *testing.T) {
 
 		output, err := runQuicCommand(t, "host", "new", "invalid-ip")
 
-		if err == nil {
-			t.Fatal("Expected command to fail with invalid IP")
-		}
-
-		if !strings.Contains(output, "failed to connect") {
-			t.Error("Expected connection failure message in output")
-		}
+		require.Error(t, err, "Expected command to fail with invalid IP")
+		require.Contains(t, output, "failed to connect", "Expected connection failure message in output")
 	})
 
 	t.Run("unreachable host", func(t *testing.T) {
@@ -65,24 +50,14 @@ func TestQuicHostNew(t *testing.T) {
 
 		output, err := runQuicCommand(t, "host", "new", "192.168.99.99")
 
-		if err == nil {
-			t.Fatal("Expected command to fail with unreachable host")
-		}
-
-		if !strings.Contains(output, "failed to connect") {
-			t.Error("Expected connection failure message in output")
-		}
+		require.Error(t, err, "Expected command to fail with unreachable host")
+		require.Contains(t, output, "failed to connect", "Expected connection failure message in output")
 	})
 
 	t.Run("host new requires IP argument", func(t *testing.T) {
 		output, err := runQuicCommand(t, "host", "new")
 
-		if err == nil {
-			t.Fatal("Expected command to fail without IP argument")
-		}
-
-		if !strings.Contains(output, "accepts 1 arg(s), received 0") {
-			t.Error("Expected argument requirement message in output")
-		}
+		require.Error(t, err, "Expected command to fail without IP argument")
+		require.Contains(t, output, "accepts 1 arg(s), received 0", "Expected argument requirement message in output")
 	})
 }
