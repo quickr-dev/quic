@@ -8,6 +8,7 @@ service QuicService {
   rpc CreateCheckout(CreateCheckoutRequest) returns (CreateCheckoutResponse);
   rpc DeleteCheckout(DeleteCheckoutRequest) returns (DeleteCheckoutResponse);
   rpc ListCheckouts(ListCheckoutsRequest) returns (ListCheckoutsResponse);
+  rpc RestoreTemplate(RestoreTemplateRequest) returns (stream RestoreTemplateResponse);
 }
 
 message CreateCheckoutRequest {
@@ -41,4 +42,69 @@ message CheckoutSummary {
 
 message ListCheckoutsResponse {
   repeated CheckoutSummary checkouts = 1;
+}
+
+message RestoreTemplateRequest {
+  string template_name = 1;
+  string database = 2;
+  string pg_version = 3;
+  BackupToken backup_token = 4;
+  string pgbackrest_config = 5;
+}
+
+message BackupToken {
+  string repo_path = 1;
+  string type = 2;
+  string stanza = 3;
+  oneof cloud_config {
+    AWSConfig aws = 4;
+    AzureConfig azure = 5;
+    GCPConfig gcp = 6;
+  }
+}
+
+message AWSConfig {
+  string s3_bucket = 1;
+  string s3_key = 2;
+  string s3_key_secret = 3;
+  string s3_region = 4;
+  string s3_token = 5;
+}
+
+message AzureConfig {
+  string storage_account = 1;
+  string storage_key = 2;
+  string container = 3;
+}
+
+message GCPConfig {
+  string bucket = 1;
+  string service_account_key = 2;
+}
+
+message RestoreTemplateResponse {
+  oneof message {
+    LogLine log = 1;
+    RestoreResult result = 2;
+    RestoreError error = 3;
+  }
+}
+
+message LogLine {
+  string line = 1;
+  string level = 2; // INFO, WARN, ERROR, DEBUG
+  int64 timestamp = 3;
+}
+
+message RestoreResult {
+  string template_name = 1;
+  string connection_string = 2;
+  string mount_path = 3;
+  int32 port = 4;
+  string service_name = 5;
+}
+
+message RestoreError {
+  string error_message = 1;
+  string step = 2; // Which step failed (e.g., "pgbackrest_restore", "zfs_create")
 }

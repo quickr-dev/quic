@@ -104,3 +104,11 @@ func (s *QuicServer) ListCheckouts(ctx context.Context, req *pb.ListCheckoutsReq
 		Checkouts: pbCheckouts,
 	}, nil
 }
+
+// RestoreTemplate implements the RestoreTemplate gRPC method
+func (s *QuicServer) RestoreTemplate(req *pb.RestoreTemplateRequest, stream pb.QuicService_RestoreTemplateServer) error {
+	log.Printf("Restoring template: %s", req.TemplateName)
+
+	// Call the agent service to restore the template
+	return s.agentService.RestoreTemplate(req, stream)
+}

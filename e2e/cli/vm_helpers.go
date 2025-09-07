@@ -27,23 +27,29 @@ func ensureVMRunning(t *testing.T, vmName string) string {
 	return recreateVM(t, vmName)
 }
 
-func recreateVM(t *testing.T, vmName string) string {
-	// if snapshotExists(t, vmName, SnapshotName) {
-	// 	stopVM(t, vmName)
-	// 	restoreVM(t, vmName, SnapshotName)
-	// 	startVM(t, vmName)
-	// 	setupTestDisks(t, vmName)
-	// 	return getVMIP(t, vmName)
-	// }
+func ensureFreshVM(t *testing.T, vmName string) string {
+	if vmExists(t, vmName) && snapshotExists(t, vmName, SnapshotName) {
+		stopVM(t, vmName)
+		restoreVM(t, vmName, SnapshotName)
+		startVM(t, vmName)
+	} else {
+		recreateVM(t, vmName)
+		createSnapshot(t, vmName, SnapshotName)
+	}
+	setupTestDisks(t, vmName)
 
-	deleteVM(t, vmName)
+	return getVMIP(t, vmName)
+}
+
+func recreateVM(t *testing.T, vmName string) string {
+	if vmExists(t, vmName) {
+		deleteVM(t, vmName)
+	}
 	launchVM(t, vmName)
 	setupSSHAccess(t, vmName)
 	setupTestDisks(t, vmName)
-	// createSnapshot(t, vmName, SnapshotName)
 
-	ip := getVMIP(t, vmName)
-	return ip
+	return getVMIP(t, vmName)
 }
 
 func vmExists(t *testing.T, name string) bool {
@@ -121,17 +127,19 @@ func addKeyToSSHAgent(t *testing.T, keyPath string) {
 func setupTestDisks(t *testing.T, vmName string) {
 	commands := [][]string{
 		{"multipass", "exec", vmName, "--", "sudo", "bash", "-c", "mkdir -p /tmp/test-disks"},
-		{"timeout", "10", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "fallocate -l 128M /tmp/test-disks/disk1.img"},
-		{"timeout", "10", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "fallocate -l 256M /tmp/test-disks/disk2.img"},
-		{"timeout", "10", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "fallocate -l 512M /tmp/test-disks/disk3.img"},
-		{"multipass", "exec", vmName, "--", "sudo", "bash", "-c", "losetup /dev/loop10 /tmp/test-disks/disk1.img"},
-		{"multipass", "exec", vmName, "--", "sudo", "bash", "-c", "losetup /dev/loop11 /tmp/test-disks/disk2.img"},
-		{"multipass", "exec", vmName, "--", "sudo", "bash", "-c", "losetup /dev/loop12 /tmp/test-disks/disk3.img"},
+		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "fallocate -l 100M /tmp/test-disks/disk1.img"},
+		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "fallocate -l 100M /tmp/test-disks/disk2.img"},
+		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "fallocate -l 100M /tmp/test-disks/disk3.img"},
+		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "losetup /dev/loop10 /tmp/test-disks/disk1.img"},
+		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "losetup /dev/loop11 /tmp/test-disks/disk2.img"},
+		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "losetup /dev/loop12 /tmp/test-disks/disk3.img"},
 	}
 
 	for _, cmdArgs := range commands {
+		t.Logf("Executing command: %v", cmdArgs)
 		runShell(t, cmdArgs[0], cmdArgs[1:]...)
 	}
+	t.Log("✓ Setup disks done")
 }
 
 func snapshotExists(t *testing.T, vmName, snapshotName string) bool {
@@ -156,7 +164,7 @@ func launchVM(t *testing.T, vmName string) {
 
 func deleteVM(t *testing.T, vmName string) {
 	t.Logf("Deleting VM %s...", vmName)
-	runShell(t, "multipass", "delete", "--purge", vmName, "||", "true")
+	runShell(t, "multipass", "delete", "--purge", vmName)
 }
 
 func restoreVM(t *testing.T, vmName, snapshotName string) {
@@ -189,4 +197,21 @@ func ensureClonedVM(t *testing.T, sourceVM, destVM string) string {
 	cloneVM(t, sourceVM, destVM)
 	setupTestDisks(t, destVM)
 	return getVMIP(t, destVM)
+}
+
+func buildAndDeployAgent(t *testing.T, vmName string) {
+	t.Helper()
+	t.Log("Reinstalling agent...")
+
+	// TODO: detect architecture
+	runShell(t, "timeout", "5s", "bash", "-c", "cd ../../ && GOOS=linux GOARCH=arm64 go build -o bin/quicd-linux ./cmd/quicd")
+	runShell(t, "timeout", "5s", "multipass", "transfer", "../../bin/quicd-linux", vmName+":/tmp/quicd")
+	runShell(t, "timeout", "5s", "bash", "-c", fmt.Sprintf("multipass exec %s -- sudo systemctl stop quicd || true", vmName))
+	runShell(t, "timeout", "5s", "multipass", "exec", vmName, "--", "sudo", "mv", "/tmp/quicd", "/usr/local/bin/quicd")
+	runShell(t, "timeout", "5s", "multipass", "exec", vmName, "--", "sudo", "chown", "root:root", "/usr/local/bin/quicd")
+	runShell(t, "timeout", "5s", "multipass", "exec", vmName, "--", "sudo", "chmod", "+x", "/usr/local/bin/quicd")
+	runShell(t, "timeout", "5s", "multipass", "exec", vmName, "--", "sudo", "systemctl", "enable", "quicd")
+	runShell(t, "timeout", "5s", "multipass", "exec", vmName, "--", "sudo", "systemctl", "start", "quicd")
+
+	t.Log("✓ Agent deployed")
 }

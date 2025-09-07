@@ -76,7 +76,10 @@
     - name: Setup quic user sudoers permissions
       copy:
         content: |
-          quic ALL=(root) NOPASSWD: /sbin/zfs, /sbin/zpool, /usr/sbin/ufw, /usr/bin/pgrep, /bin/systemctl, /usr/bin/tee, /bin/rm -f /etc/systemd/system/quic-clone-*.service
+          quic ALL=(root) NOPASSWD: /sbin/zfs, /sbin/zpool, /usr/sbin/ufw, /usr/bin/pgrep
+          quic ALL=(root) NOPASSWD: /bin/systemctl, /usr/bin/tee, /usr/bin/pgbackrest
+          quic ALL=(root) NOPASSWD: /bin/chmod, /bin/chown, /bin/cat
+          quic ALL=(root) NOPASSWD: /bin/rm -f /etc/systemd/system/quic-clone-*.service
           quic ALL=(postgres) NOPASSWD: /usr/lib/postgresql/*/bin/*
         dest: /etc/sudoers.d/quic-agent
         mode: "0440"

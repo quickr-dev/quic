@@ -21,6 +21,7 @@ func init() {
 	templateNewCmd.Flags().String("pg-version", "16", "PostgreSQL version")
 	templateNewCmd.Flags().String("provider", "crunchybridge", "Template provider (currently only crunchybridge)")
 	templateNewCmd.Flags().String("cluster-name", "", "Provider cluster name")
+	templateNewCmd.Flags().String("database", "", "Database name to restore")
 }
 
 func runTemplateNew(cmd *cobra.Command, args []string) error {
@@ -34,9 +35,10 @@ func runTemplateNew(cmd *cobra.Command, args []string) error {
 	pgVersion, _ := cmd.Flags().GetString("pg-version")
 	providerName, _ := cmd.Flags().GetString("provider")
 	clusterName, _ := cmd.Flags().GetString("cluster-name")
+	database, _ := cmd.Flags().GetString("database")
 
-	// If cluster-name flag is not provided, use interactive prompts
-	if clusterName == "" {
+	// If cluster-name or database flag is not provided, use interactive prompts
+	if clusterName == "" || database == "" {
 		reader := bufio.NewReader(os.Stdin)
 
 		// Prompt for PostgreSQL version if not provided via flag
@@ -59,12 +61,25 @@ func runTemplateNew(cmd *cobra.Command, args []string) error {
 		}
 
 		// Input CrunchyBridge cluster name
-		fmt.Print("Input CrunchyBridge cluster name (https://crunchybridge.com/): ")
-		clusterNameInput, _ := reader.ReadString('\n')
-		clusterName = strings.TrimSpace(clusterNameInput)
-
 		if clusterName == "" {
-			return fmt.Errorf("cluster name cannot be empty")
+			fmt.Print("Input CrunchyBridge cluster name (https://crunchybridge.com/): ")
+			clusterNameInput, _ := reader.ReadString('\n')
+			clusterName = strings.TrimSpace(clusterNameInput)
+
+			if clusterName == "" {
+				return fmt.Errorf("cluster name cannot be empty")
+			}
+		}
+
+		// Input database name
+		if database == "" {
+			fmt.Print("Input database name to restore: ")
+			databaseInput, _ := reader.ReadString('\n')
+			database = strings.TrimSpace(databaseInput)
+
+			if database == "" {
+				return fmt.Errorf("database name cannot be empty")
+			}
 		}
 	}
 
@@ -78,6 +93,7 @@ func runTemplateNew(cmd *cobra.Command, args []string) error {
 	template := config.Template{
 		Name:      templateName,
 		PGVersion: pgVersion,
+		Database:  database,
 		Provider: config.TemplateProvider{
 			Name:        providerName,
 			ClusterName: clusterName,
@@ -94,7 +110,7 @@ func runTemplateNew(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save quic config: %w", err)
 	}
 
-	fmt.Printf("Added template '%s' (PostgreSQL %s, CrunchyBridge: %s) to quic.json\n", templateName, pgVersion, clusterName)
+	fmt.Printf("Added template '%s' (PostgreSQL %s, Database: %s, CrunchyBridge: %s) to quic.json\n", templateName, pgVersion, database, clusterName)
 
 	return nil
 }

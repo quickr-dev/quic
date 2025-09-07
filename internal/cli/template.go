@@ -11,4 +11,5 @@ var templateCmd = &cobra.Command{
 
 func init() {
 	templateCmd.AddCommand(templateNewCmd)
+	templateCmd.AddCommand(templateSetupCmd)
 }

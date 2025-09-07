@@ -28,6 +28,7 @@ type QuicHost struct {
 type Template struct {
 	Name      string           `json:"name"`
 	PGVersion string           `json:"pgVersion"`
+	Database  string           `json:"database"`
 	Provider  TemplateProvider `json:"provider"`
 }
 
@@ -126,6 +127,10 @@ func (c *QuicConfig) validateTemplate(template Template) error {
 
 	if template.PGVersion == "" {
 		return fmt.Errorf("template PostgreSQL version cannot be empty")
+	}
+
+	if template.Database == "" {
+		return fmt.Errorf("template database cannot be empty")
 	}
 
 	if template.Provider.Name == "" {

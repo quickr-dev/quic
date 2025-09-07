@@ -50,3 +50,4 @@ ansible/vault_pass*
 .vault_pass*
 
 quic.json
+.env
