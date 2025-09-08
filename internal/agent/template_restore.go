@@ -2,17 +2,19 @@ package agent
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	pb "github.com/quickr-dev/quic/proto"
 )
 
 func (s *AgentService) RestoreTemplate(req *pb.RestoreTemplateRequest, stream pb.QuicService_RestoreTemplateServer) error {
-	// Send initial log
 	s.sendLog(stream, "INFO", "Starting template restore process...")
 
 	// Create pgbackrest config file
@@ -49,17 +51,12 @@ func (s *AgentService) RestoreTemplate(req *pb.RestoreTemplateRequest, stream pb
 }
 
 func (s *AgentService) writePgBackRestConfig(configContent string) error {
-	configPath := "/etc/pgbackrest.conf"
-
-	// Write config using sudo
-	cmd := exec.Command("sudo", "tee", configPath)
+	cmd := exec.Command("sudo", "tee", "/etc/pgbackrest.conf")
 	cmd.Stdin = strings.NewReader(configContent)
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to write pgbackrest config: %w", err)
 	}
-
-	// Note: Permissions are set by tee command automatically
 
 	return nil
 }
@@ -154,6 +151,13 @@ func (s *AgentService) initRestoreWithStreaming(req *pb.RestoreTemplateRequest, 
 		CreatedAt:   time.Now().Format(time.RFC3339),
 	}
 
+	// Write metadata file to disk (same as InitRestore)
+	s.sendLog(stream, "INFO", "Writing metadata file...")
+	if err := s.writeMetadataFile(result, mountPath); err != nil {
+		return nil, fmt.Errorf("writing metadata file: %w", err)
+	}
+	s.sendLog(stream, "INFO", "✓ Metadata file written")
+
 	return result, nil
 }
 
@@ -183,8 +187,13 @@ func (s *AgentService) runPgBackRestWithStreaming(stanza, pgDataPath string, str
 		return fmt.Errorf("failed to start pgbackrest: %w", err)
 	}
 
+	// Use WaitGroup to synchronize goroutines
+	var wg sync.WaitGroup
+
 	// Stream stdout
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			line := scanner.Text()
@@ -193,7 +202,9 @@ func (s *AgentService) runPgBackRestWithStreaming(stanza, pgDataPath string, str
 	}()
 
 	// Stream stderr
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
 			line := scanner.Text()
@@ -202,8 +213,13 @@ func (s *AgentService) runPgBackRestWithStreaming(stanza, pgDataPath string, str
 	}()
 
 	// Wait for command to complete
-	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("pgbackrest command failed: %w", err)
+	cmdErr := cmd.Wait()
+
+	// Wait for all goroutines to finish reading pipes
+	wg.Wait()
+
+	if cmdErr != nil {
+		return fmt.Errorf("pgbackrest command failed: %w", cmdErr)
 	}
 
 	return nil
@@ -292,6 +308,22 @@ func (s *AgentService) updatePostgreSQLConfForTemplate(mountPath string) error {
 	cmd.Stdin = strings.NewReader(config)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("writing postgresql.conf: %w", err)
+	}
+
+	return nil
+}
+
+func (s *AgentService) writeMetadataFile(result *InitResult, mountPath string) error {
+	metadataPath := filepath.Join(mountPath, ".quic-init-meta.json")
+	metadataBytes, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling metadata: %w", err)
+	}
+
+	cmd := exec.Command("sudo", "tee", metadataPath)
+	cmd.Stdin = strings.NewReader(string(metadataBytes))
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("writing metadata: %w", err)
 	}
 
 	return nil

@@ -23,7 +23,6 @@ var templateSetupCmd = &cobra.Command{
 	RunE:  runTemplateSetup,
 }
 
-
 func runTemplateSetup(cmd *cobra.Command, args []string) error {
 	// Load quic config
 	quicConfig, err := config.LoadQuicConfig()
@@ -77,7 +76,6 @@ func runTemplateSetup(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-
 func setupTemplate(template config.Template, client *providers.CrunchyBridgeClient, hosts []config.QuicHost) error {
 	fmt.Printf("\n🔄 Setting up template '%s'...\n", template.Name)
 
@@ -115,11 +113,11 @@ func setupTemplate(template config.Template, client *providers.CrunchyBridgeClie
 	// Setup template on each host
 	for _, host := range hosts {
 		fmt.Printf("\n📡 Setting up template '%s' on host %s (%s)...\n", template.Name, host.Alias, host.IP)
-		
+
 		if err := setupTemplateOnHost(template, backupToken, pgbackrestConfig, host); err != nil {
 			return fmt.Errorf("failed to setup template on host %s: %w", host.Alias, err)
 		}
-		
+
 		fmt.Printf("✓ Template '%s' setup complete on host %s\n", template.Name, host.Alias)
 	}
 
@@ -127,7 +125,6 @@ func setupTemplate(template config.Template, client *providers.CrunchyBridgeClie
 }
 
 func setupTemplateOnHost(template config.Template, backupToken *providers.BackupToken, pgbackrestConfig string, host config.QuicHost) error {
-	// Connect to agent with TLS (skip verification for self-signed certs)
 	config := &tls.Config{
 		InsecureSkipVerify: true,
 	}
@@ -144,11 +141,11 @@ func setupTemplateOnHost(template config.Template, backupToken *providers.Backup
 
 	// Create restore request
 	req := &pb.RestoreTemplateRequest{
-		TemplateName:      template.Name,
-		Database:          template.Database,
-		PgVersion:         template.PGVersion,
-		BackupToken:       pbBackupToken,
-		PgbackrestConfig:  pgbackrestConfig,
+		TemplateName:     template.Name,
+		Database:         template.Database,
+		PgVersion:        template.PGVersion,
+		BackupToken:      pbBackupToken,
+		PgbackrestConfig: pgbackrestConfig,
 	}
 
 	// Start restore with streaming

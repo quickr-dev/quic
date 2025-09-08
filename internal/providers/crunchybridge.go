@@ -306,18 +306,15 @@ func (c *CrunchyBridgeClient) makeRequest(method, url string, body []byte) ([]by
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Add authentication header
 	req.Header.Set("Authorization", "Bearer "+c.APIKey)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "Quic/1.0")
 
-	// DEBUG: Log the API key being used (first 10 chars for security)
 	keyLen := len(c.APIKey)
 	if keyLen > 10 {
 		keyLen = 10
 	}
-	fmt.Printf("DEBUG: Making %s request to %s with API key: %s...\n", method, url, c.APIKey[:keyLen])
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -330,7 +327,6 @@ func (c *CrunchyBridgeClient) makeRequest(method, url string, body []byte) ([]by
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// DEBUG: Log response status and body
 	fmt.Printf("DEBUG: Response status: %d, body length: %d bytes\n", resp.StatusCode, len(responseBody))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		fmt.Printf("DEBUG: Error response body: %s\n", string(responseBody))

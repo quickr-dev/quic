@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -19,58 +18,8 @@ import (
 	pb "github.com/quickr-dev/quic/proto"
 )
 
-var rootCmd = &cobra.Command{
-	Use:   "quicd",
-	Short: "Quic daemon server",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return runDaemon()
-	},
-}
-
-var initCmd = &cobra.Command{
-	Use:   "init <dirname>",
-	Short: "Initialize a pgbackrest restore to be used as template for branches",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		dirname := args[0]
-		stanza, _ := cmd.Flags().GetString("stanza")
-		database, _ := cmd.Flags().GetString("database")
-
-		if stanza == "" {
-			return fmt.Errorf("--stanza flag is required")
-		}
-
-		if database == "" {
-			return fmt.Errorf("--database flag is required")
-		}
-
-		agentService := agent.NewCheckoutService()
-		initConfig := &agent.InitConfig{
-			Stanza:   stanza,
-			Database: database,
-			Dirname:  dirname,
-		}
-
-		_, err := agentService.InitRestore(initConfig)
-		if err != nil {
-			return fmt.Errorf("init failed: %w", err)
-		}
-
-		return nil
-	},
-}
-
-func init() {
-	initCmd.Flags().String("stanza", "", "pgBackRest stanza name")
-	initCmd.Flags().String("database", "", "Database name to configure for connections")
-	initCmd.MarkFlagRequired("stanza")
-	initCmd.MarkFlagRequired("database")
-
-	rootCmd.AddCommand(initCmd)
-}
-
 func main() {
-	if err := rootCmd.Execute(); err != nil {
+	if err := runDaemon(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

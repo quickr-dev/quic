@@ -136,7 +136,7 @@ func setupTestDisks(t *testing.T, vmName string) {
 	}
 
 	for _, cmdArgs := range commands {
-		t.Logf("Executing command: %v", cmdArgs)
+		t.Logf("Running '%v'", cmdArgs)
 		runShell(t, cmdArgs[0], cmdArgs[1:]...)
 	}
 	t.Log("✓ Setup disks done")
@@ -199,14 +199,13 @@ func ensureClonedVM(t *testing.T, sourceVM, destVM string) string {
 	return getVMIP(t, destVM)
 }
 
-func buildAndDeployAgent(t *testing.T, vmName string) {
-	t.Helper()
+func reinstallQuicd(t *testing.T, vmName string) {
 	t.Log("Reinstalling agent...")
 
 	// Detect VM architecture
 	archOutput := runShell(t, "multipass", "exec", vmName, "--", "uname", "-m")
 	vmArch := strings.TrimSpace(archOutput)
-	
+
 	// Map VM architecture to Go GOARCH
 	var goArch string
 	switch vmArch {
@@ -217,8 +216,7 @@ func buildAndDeployAgent(t *testing.T, vmName string) {
 	default:
 		t.Fatalf("Unsupported VM architecture: %s", vmArch)
 	}
-	
-	t.Logf("Detected VM architecture: %s (GOARCH=%s)", vmArch, goArch)
+
 	runShell(t, "timeout", "5s", "bash", "-c", fmt.Sprintf("cd ../../ && GOOS=linux GOARCH=%s go build -o bin/quicd-linux ./cmd/quicd", goArch))
 	runShell(t, "timeout", "5s", "multipass", "transfer", "../../bin/quicd-linux", vmName+":/tmp/quicd")
 	runShell(t, "timeout", "5s", "bash", "-c", fmt.Sprintf("multipass exec %s -- sudo systemctl stop quicd || true", vmName))
@@ -228,5 +226,5 @@ func buildAndDeployAgent(t *testing.T, vmName string) {
 	runShell(t, "timeout", "5s", "multipass", "exec", vmName, "--", "sudo", "systemctl", "enable", "quicd")
 	runShell(t, "timeout", "5s", "multipass", "exec", vmName, "--", "sudo", "systemctl", "start", "quicd")
 
-	t.Log("✓ Agent deployed")
+	t.Log("✓ Agent reinstalled")
 }

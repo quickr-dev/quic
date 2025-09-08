@@ -244,7 +244,7 @@ func setupTestDatabase(t *testing.T, connectionString string) error {
 
 		t.Logf("Reset database to correct state with %d users", len(expectedUsers))
 	} else {
-		t.Logf("Database already has correct %d users", existingCount)
+		t.Logf("Database has correct %d users", existingCount)
 	}
 
 	// Verify data was inserted
@@ -253,8 +253,6 @@ func setupTestDatabase(t *testing.T, connectionString string) error {
 	if err != nil {
 		return fmt.Errorf("failed to count users: %w", err)
 	}
-
-	t.Logf("Total users in database: %d", count)
 
 	return nil
 }
