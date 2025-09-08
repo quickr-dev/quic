@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,7 +26,6 @@ func (s *AgentService) RestoreTemplate(req *pb.RestoreTemplateRequest, stream pb
 
 	s.sendLog(stream, "INFO", "✓ pgBackRest configuration written")
 
-	// Use existing InitRestore logic but adapted for streaming
 	result, err := s.initRestoreWithStreaming(req, stream)
 	if err != nil {
 		s.sendError(stream, "restore", fmt.Sprintf("Template restore failed: %v", err))
@@ -327,4 +327,91 @@ func (s *AgentService) writeMetadataFile(result *InitResult, mountPath string) e
 	}
 
 	return nil
+}
+
+type InitResult struct {
+	Dirname     string `json:"dirname"`
+	Stanza      string `json:"stanza"`
+	Database    string `json:"database"`
+	MountPath   string `json:"mount_path"`
+	Port        int    `json:"port"`
+	ServiceName string `json:"service_name"`
+	CreatedAt   string `json:"created_at"`
+}
+
+func findAvailablePortForInit() (int, error) {
+	for port := StartPort; port <= EndPort; port++ {
+		conn, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+		if err != nil {
+			continue
+		}
+		conn.Close()
+
+		return port, nil
+	}
+
+	return 0, fmt.Errorf("no available ports in range %d-%d", StartPort, EndPort)
+}
+
+func createPostgreSQLSystemdService(dirname, mountPath string, port int, serviceName string) error {
+	serviceContent := fmt.Sprintf(`[Unit]
+Description=PostgreSQL database server (restored instance - %[1]s)
+Documentation=man:postgres(1)
+After=network.target zfs-unlock.service
+
+[Service]
+Type=forking
+User=postgres
+ExecStart=%[2]s start -D %[3]s -o "--port=%[4]d" -w -t 300
+ExecStop=%[2]s stop -D %[3]s -m fast
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=mixed
+KillSignal=SIGINT
+TimeoutStartSec=1200
+TimeoutStopSec=300
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+`, dirname, pgCtlPath(PgVersion), mountPath, port)
+
+	servicePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
+
+	cmd := exec.Command("sudo", "tee", servicePath)
+	cmd.Stdin = strings.NewReader(serviceContent)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("writing systemd service file: %w", err)
+	}
+
+	if err := exec.Command("sudo", "systemctl", "daemon-reload").Run(); err != nil {
+		return fmt.Errorf("reloading systemd daemon: %w", err)
+	}
+
+	if err := exec.Command("sudo", "systemctl", "enable", serviceName).Run(); err != nil {
+		return fmt.Errorf("enabling systemd service: %w", err)
+	}
+
+	return nil
+}
+
+func startPostgreService(serviceName string) error {
+	if err := exec.Command("sudo", "systemctl", "start", serviceName).Run(); err != nil {
+		return fmt.Errorf("starting systemd service %s: %w", serviceName, err)
+	}
+	return nil
+}
+
+func waitForPostgreSQLReady(port int, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		cmd := exec.Command(pgIsReadyPath(PgVersion), "-p", fmt.Sprintf("%d", port))
+		if cmd.Run() == nil {
+			return nil
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return fmt.Errorf("PostgreSQL not ready after %v timeout", timeout)
 }
