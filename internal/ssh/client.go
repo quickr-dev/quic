@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -53,12 +51,6 @@ func NewClient(host string) (*Client, error) {
 		"-o", "LogLevel=ERROR", // Suppress SSH warnings
 	}
 
-	// Check if we have a test SSH key (for e2e tests)
-	testKeyPath := filepath.Join(os.TempDir(), "quic-test-ssh", "id_rsa")
-	if _, err := os.Stat(testKeyPath); err == nil {
-		baseSSHArgs = append(baseSSHArgs, "-i", testKeyPath)
-	}
-
 	for _, user := range users {
 		sshArgs := append(baseSSHArgs, "-l", user)
 
@@ -81,11 +73,6 @@ func NewClient(host string) (*Client, error) {
 	return nil, fmt.Errorf("failed to connect to %s as any user (tried: %s): SSH authentication failed. Please ensure SSH keys are configured or SSH agent is running", host, strings.Join(users, ", "))
 }
 
-func (c *Client) Close() error {
-	// No persistent connection to close when using system ssh
-	return nil
-}
-
 func (c *Client) Username() string {
 	return c.username
 }
@@ -102,7 +89,7 @@ func (c *Client) TestConnection() error {
 	return nil
 }
 
-func (c *Client) runCommand(cmd string) ([]byte, error) {
+func (c *Client) RunCommand(cmd string) ([]byte, error) {
 	return c.runCommandWithStderr(cmd, false)
 }
 
@@ -126,7 +113,7 @@ func (c *Client) runCommandWithStderr(cmd string, includeStderr bool) ([]byte, e
 
 func (c *Client) VerifyRootAccess() error {
 	// Test basic connectivity
-	output, err := c.runCommand("whoami")
+	output, err := c.RunCommand("whoami")
 	if err != nil {
 		return fmt.Errorf("failed to check user: %w", err)
 	}
@@ -140,7 +127,7 @@ func (c *Client) VerifyRootAccess() error {
 
 	// If we're using sudo, test that we can become root
 	if c.useSudo {
-		rootOutput, err := c.runCommand("whoami")
+		rootOutput, err := c.RunCommand("whoami")
 		if err != nil {
 			return fmt.Errorf("failed to verify sudo access: %w", err)
 		}

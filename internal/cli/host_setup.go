@@ -71,7 +71,6 @@ func runHostSetup(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to connect to host %s: %w", host.IP, err)
 		}
 		hostUsernames[host.IP] = client.Username()
-		client.Close()
 	}
 
 	if !confirmDestructiveSetup(targetHosts) {

@@ -34,7 +34,6 @@ func runHostNew(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to host %s: %w\n\nTroubleshooting:\n• Ensure the host is reachable\n• Verify SSH is running on port 22\n• Check SSH agent is running: ssh-add -l\n• Verify root access: ssh root@%s", ip, err, ip)
 	}
-	defer client.Close()
 
 	if err := client.TestConnection(); err != nil {
 		return fmt.Errorf("connection test failed: %w", err)
