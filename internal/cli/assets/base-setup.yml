@@ -153,27 +153,36 @@
             zfs_device_list: "{{ zfs_devices.split(',') | join(' ') }}"
 
         - name: Create encrypted tank pool
-          shell: |
-            set -e  # Exit immediately on any command failure
-            zpool create tank {{ zfs_device_list }} \
-              -O encryption=aes-256-gcm \
-              -O keylocation=file:///etc/quic/zfs-key \
-              -O keyformat=raw
-            zfs set recordsize=8K tank
-            zfs set compression=lz4 tank
-            zfs set atime=off tank
-            zfs set logbias=throughput tank
+          command: timeout 10 zpool create tank {{ zfs_device_list }} -O encryption=aes-256-gcm -O keylocation=file:///etc/quic/zfs-key -O keyformat=raw
           register: zpool_result
           failed_when: zpool_result.rc != 0
 
+        - name: Configure tank pool properties
+          command: timeout 10 zfs set {{ item }} tank
+          loop:
+            - recordsize=8K
+            - compression=lz4
+            - atime=off
+            - logbias=throughput
+          register: zfs_config_result
+          failed_when: zfs_config_result.rc != 0
+          retries: 3
+          delay: 1
+
         - name: Verify ZFS pool was created successfully
-          command: zpool status tank
+          command: timeout 5 zpool status tank
           register: verify_result
           failed_when: verify_result.rc != 0
           changed_when: false
 
+        - name: Verify tank pool is accessible
+          command: timeout 5 zfs list tank
+          register: zfs_verify
+          failed_when: zfs_verify.rc != 0
+          changed_when: false
+
         - name: Set postgres ownership on tank pool
-          command: chown postgres:postgres /tank
+          command: timeout 5 chown postgres:postgres /tank
 
         - name: Create data directory in tank
           file:
