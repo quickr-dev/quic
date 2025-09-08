@@ -31,7 +31,7 @@ func UnaryAuthInterceptor() grpc.UnaryServerInterceptor {
 			return nil, status.Error(codes.Unauthenticated, "missing authorization header")
 		}
 
-		token := ExtractTokenFromMetadata(authHeaders[0])
+		token := ExtractTokenFromHeader(authHeaders[0])
 		if token == "" {
 			return nil, status.Error(codes.Unauthenticated, "invalid authorization header format")
 		}
@@ -41,8 +41,6 @@ func UnaryAuthInterceptor() grpc.UnaryServerInterceptor {
 			log.Printf("Authentication failed for token %s...: %v", token[:min(8, len(token))], err)
 			return nil, status.Error(codes.Unauthenticated, "invalid token")
 		}
-
-		log.Printf("Authenticated user: %s", userName)
 
 		newCtx := context.WithValue(ctx, UserContextKey, userName)
 

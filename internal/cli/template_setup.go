@@ -59,7 +59,7 @@ func runTemplateSetup(cmd *cobra.Command, args []string) error {
 	// Get CrunchyBridge API key from environment
 	apiKey := os.Getenv("CB_API_KEY")
 	if apiKey == "" {
-		return fmt.Errorf("CrunchyBridge API key not found. Please provide it:\n$ CB_API_KEY=<YOUR_KEY> quic template setup")
+		return fmt.Errorf("CrunchyBridge API key not found. Please provide it:\n$ CB_API_KEY=<YOUR_KEY> quic template setup\n\n-> https://www.crunchybridge.com/account/api-keys")
 	}
 
 	// Create CrunchyBridge client

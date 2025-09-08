@@ -12,11 +12,12 @@ import (
 )
 
 const (
-	SnapshotName       = "base"
-	QuicHostVMName     = "quic-host"
-	QuicHost2VMName    = "quic-host2"
-	QuicTemplateVMName = "quic-template"
-	TestDevices        = "/tmp/disk1,/tmp/disk2"
+	SnapshotName   = "base"
+	QuicHostVM     = "quic-host"
+	QuicHost2VM    = "quic-host2"
+	QuicTemplateVM = "quic-template"
+	QuicUserVM     = "quic-user"
+	VMDevices      = "/tmp/disk1,/tmp/disk2"
 )
 
 func ensureVMRunning(t *testing.T, vmName string) string {
@@ -124,21 +125,11 @@ func addKeyToSSHAgent(t *testing.T, keyPath string) {
 }
 
 func setupTestDisks(t *testing.T, vmName string) {
-	commands := [][]string{
-		{"multipass", "exec", vmName, "--", "sudo", "bash", "-c", "mkdir -p /tmp"},
-		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "truncate -s 1G /tmp/disk1"},
-		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "truncate -s 1G /tmp/disk2"},
+	for device := range strings.SplitSeq(VMDevices, ",") {
+		runInVM(t, vmName, fmt.Sprintf("timeout 5 sudo truncate -s 1G %s", device))
+		runInVM(t, vmName, fmt.Sprintf("timeout 5 sudo test -f %s", device))
 	}
-
-	for _, cmdArgs := range commands {
-		t.Logf("Running '%v'", cmdArgs)
-		runShell(t, cmdArgs[0], cmdArgs[1:]...)
-	}
-
-	runInVM(t, vmName, "sudo test -f /tmp/disk1")
-	runInVM(t, vmName, "sudo test -f /tmp/disk2")
-
-	t.Log("✓ Setup disks done")
+	t.Log("✓ Setup disks")
 }
 
 func snapshotExists(t *testing.T, vmName, snapshotName string) bool {

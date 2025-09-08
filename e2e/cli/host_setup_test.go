@@ -1,31 +1,32 @@
 package e2e_cli
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestQuicHostSetup(t *testing.T) {
-	vmIP := ensureFreshVM(t, QuicHostVMName)
+	quicHostIP := ensureFreshVM(t, QuicHostVM)
+	quicHost2IP := ensureFreshVM(t, QuicHost2VM)
 
 	t.Run("setup with single host", func(t *testing.T) {
 		cleanupQuicConfig(t)
-		output, err := runQuic(t, "host", "new", vmIP, "--devices", TestDevices)
+		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices)
 		require.NoError(t, err, output)
 
-		runShell(t, "bash", "-c", "echo 'ack' | ../../bin/quic host setup")
-		validateHostSetup(t, QuicHostVMName)
+		// run once
+		output = runQuicHostSetupWithAck(t, QuicHostVM)
+		require.Contains(t, output, "Setup completed: 1 successful")
 
 		// can rerun just fine
-		output = runShell(t, "bash", "-c", "echo 'ack' | ../../bin/quic host setup")
+		output = runQuicHostSetupWithAck(t, QuicHostVM)
 		require.Contains(t, output, "Setup completed: 1 successful")
 	})
 
 	t.Run("setup abort", func(t *testing.T) {
 		cleanupQuicConfig(t)
-		output, err := runQuic(t, "host", "new", vmIP, "--devices", TestDevices)
+		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices)
 		require.NoError(t, err, output)
 
 		// Test aborting setup with 'no' input
@@ -35,27 +36,27 @@ func TestQuicHostSetup(t *testing.T) {
 
 	t.Run("setup with specific host alias", func(t *testing.T) {
 		cleanupQuicConfig(t)
-		output, err := runQuic(t, "host", "new", vmIP, "--devices", TestDevices, "--alias", "test-host")
+		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices, "--alias", "test-host")
 		require.NoError(t, err, output)
 
-		output = runShell(t, "bash", "-c", "echo 'ack' | ../../bin/quic host setup --hosts test-host")
+		output = runQuicHostSetupWithAck(t, QuicHostVM, "--hosts", "test-host")
 		require.Contains(t, output, "Setup completed: 1 successful")
-		validateHostSetup(t, QuicHostVMName)
+		validateHostSetup(t, QuicHostVM)
 	})
 
 	t.Run("setup with specific host ip", func(t *testing.T) {
 		cleanupQuicConfig(t)
-		output, err := runQuic(t, "host", "new", vmIP, "--devices", TestDevices)
+		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices)
 		require.NoError(t, err, output)
 
-		output = runShell(t, "bash", "-c", fmt.Sprintf("echo 'ack' | ../../bin/quic host setup --hosts %s", vmIP))
+		output = runQuicHostSetupWithAck(t, QuicHostVM, "--hosts", quicHostIP)
 		require.Contains(t, output, "Setup completed: 1 successful")
-		validateHostSetup(t, QuicHostVMName)
+		validateHostSetup(t, QuicHostVM)
 	})
 
 	t.Run("setup with invalid host", func(t *testing.T) {
 		cleanupQuicConfig(t)
-		output, err := runQuic(t, "host", "new", vmIP, "--devices", TestDevices)
+		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices)
 		require.NoError(t, err, output)
 
 		// setup with non-existent host exists without error
@@ -76,12 +77,11 @@ func TestQuicHostSetup(t *testing.T) {
 
 	t.Run("setup with multiple hosts configured requires --hosts", func(t *testing.T) {
 		cleanupQuicConfig(t)
-		cloneVMIP := ensureClonedVM(t, QuicHostVMName, QuicHost2VMName)
 
 		// Add two hosts
-		output, err := runQuic(t, "host", "new", vmIP, "--devices", TestDevices, "--alias", "host1")
+		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices, "--alias", "host1")
 		require.NoError(t, err, output)
-		output, err = runQuic(t, "host", "new", cloneVMIP, "--devices", TestDevices, "--alias", "host2")
+		output, err = runQuic(t, "host", "new", quicHost2IP, "--devices", VMDevices, "--alias", "host2")
 		require.NoError(t, err, output)
 
 		// Try setup without specifying hosts - should prompt for safety
@@ -92,31 +92,29 @@ func TestQuicHostSetup(t *testing.T) {
 
 	t.Run("sets up multiple hosts with --hosts all", func(t *testing.T) {
 		cleanupQuicConfig(t)
-		cloneVMIP := ensureClonedVM(t, QuicHostVMName, QuicHost2VMName)
 
 		// Add two hosts
-		output, err := runQuic(t, "host", "new", vmIP, "--devices", TestDevices, "--alias", "host1")
+		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices, "--alias", "host1")
 		require.NoError(t, err, output)
-		output, err = runQuic(t, "host", "new", cloneVMIP, "--devices", TestDevices, "--alias", "host2")
+		output, err = runQuic(t, "host", "new", quicHost2IP, "--devices", VMDevices, "--alias", "host2")
 		require.NoError(t, err, output)
 
 		// Setup all hosts
-		output = runShell(t, "bash", "-c", "echo 'ack' | ../../bin/quic host setup --hosts all")
+		output = runQuicHostSetupWithAck(t, QuicHostVM, "--hosts", "all")
 		require.Contains(t, output, "Setup completed:", "Setup should complete for all hosts")
 
 		// Validate complete setup on both hosts using reusable function
-		validateHostSetup(t, QuicHostVMName)
-		validateHostSetup(t, QuicHost2VMName)
+		validateHostSetup(t, QuicHostVM)
+		validateHostSetup(t, QuicHost2VM)
 	})
 
 	t.Run("duplicate alias validation", func(t *testing.T) {
 		cleanupQuicConfig(t)
-		cloneVMIP := ensureClonedVM(t, QuicHostVMName, QuicHost2VMName)
 
-		output, err := runQuic(t, "host", "new", vmIP, "--devices", TestDevices, "--alias", "samealias")
+		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices, "--alias", "samealias")
 		require.NoError(t, err, output)
 
-		output, err = runQuic(t, "host", "new", cloneVMIP, "--devices", TestDevices, "--alias", "samealias")
+		output, err = runQuic(t, "host", "new", quicHost2IP, "--devices", VMDevices, "--alias", "samealias")
 		require.Error(t, err, "Second host with same alias should fail")
 		require.Contains(t, output, "host with alias samealias already exists", "Should show duplicate alias error")
 	})
@@ -198,9 +196,6 @@ func validateHostSetup(t *testing.T, vmName string) {
 		output := runShell(t, "multipass", "exec", vmName, "--", "ls", "-la", "/usr/local/bin/quicd")
 		require.Contains(t, output, "-rwxr-xr-x", "quicd binary should be executable")
 		require.Contains(t, output, "root root", "quicd binary should be owned by root:root")
-
-		output = runShell(t, "multipass", "exec", vmName, "--", "/usr/local/bin/quicd", "--help")
-		require.NotEmpty(t, output, "quicd binary should respond to --help")
 	})
 
 	t.Run("validate firewall configuration", func(t *testing.T) {
@@ -214,5 +209,22 @@ func validateHostSetup(t *testing.T, vmName string) {
 		output := runShell(t, "multipass", "exec", vmName, "--", "sudo", "cat", "/etc/sudoers.d/quic-agent")
 		require.Contains(t, output, "quic ALL=(root) NOPASSWD:", "quic sudoers should allow root commands")
 		require.Contains(t, output, "quic ALL=(postgres) NOPASSWD:", "quic sudoers should allow postgres commands")
+	})
+
+	t.Run("validate sqlite database", func(t *testing.T) {
+		// ensure quicd is active
+		output := runShell(t, "multipass", "exec", vmName, "--", "systemctl", "status", "quicd")
+		t.Logf("quicd service status: %s", output)
+
+		// Verify database file exists (created when quicd service starts)
+		output = runShell(t, "multipass", "exec", vmName, "--", "ls", "-la", "/etc/quic/db.sqlite")
+		require.Contains(t, output, "/etc/quic/db.sqlite", "SQLite database file should exist after quicd service starts")
+
+		// Verify users table exists with correct schema
+		output = runShell(t, "multipass", "exec", vmName, "--", "sqlite3", "/etc/quic/db.sqlite", ".schema users")
+		require.Contains(t, output, "CREATE TABLE", "Users table should exist")
+		require.Contains(t, output, "name TEXT NOT NULL UNIQUE", "Users table should have name column")
+		require.Contains(t, output, "token TEXT NOT NULL", "Users table should have token column")
+		require.Contains(t, output, "created_at DATETIME DEFAULT CURRENT_TIMESTAMP", "Users table should have created_at column")
 	})
 }

@@ -20,7 +20,7 @@ var baseSetupPlaybook string
 
 var hostSetupCmd = &cobra.Command{
 	Use:   "setup",
-	Short: "Setup infrastructure on configured hosts",
+	Short: "[ssh] Setup infrastructure on configured hosts",
 	RunE:  runHostSetup,
 }
 
@@ -161,7 +161,6 @@ func createInventoryFile(host config.QuicHost, username string) (string, error) 
 	inventoryFile := filepath.Join(os.TempDir(), "quic-inventory-"+uuid.New().String())
 	return inventoryFile, os.WriteFile(inventoryFile, []byte(inventoryContent), 0600)
 }
-
 
 func validateQuicJson(cmd *cobra.Command, quicConfig *config.QuicConfig) error {
 	aliases := make(map[string]bool)

@@ -9,11 +9,11 @@ import (
 )
 
 func TestQuicHostNew(t *testing.T) {
-	vmIP := ensureVMRunning(t, QuicHostVMName)
+	vmIP := ensureVMRunning(t, QuicHostVM)
 
 	t.Run("successful host addition", func(t *testing.T) {
 		cleanupQuicConfig(t)
-		output, err := runQuic(t, "host", "new", vmIP, "--devices", TestDevices)
+		output, err := runQuic(t, "host", "new", vmIP, "--devices", VMDevices)
 
 		require.NoError(t, err, "quic host new should succeed\nOutput: %s", output)
 

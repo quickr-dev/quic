@@ -44,6 +44,7 @@
           - "postgresql-{{ pg_version }}"
           - postgresql-contrib
           - pgbackrest
+          - sqlite3
         state: present
 
     - name: Stop and disable default PostgreSQL service

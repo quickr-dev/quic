@@ -13,19 +13,15 @@ import (
 
 func TestQuicTemplateSetup(t *testing.T) {
 	ensureCrunchyBridgeBackup(t, quicE2eClusterName)
-	vmIP := ensureFreshVM(t, QuicTemplateVMName)
+	vmIP := ensureFreshVM(t, QuicTemplateVM)
 
 	// Setup host
-	t.Log("Rm quic.json")
 	cleanupQuicConfig(t)
-	t.Log("Running quic host new")
-	runShell(t, "../../bin/quic", "host", "new", vmIP, "--devices", TestDevices)
-	t.Log("Running quic host setup...")
-	hostSetupOutput := runShell(t, "time", "bash", "-c", "echo 'ack' | ../../bin/quic host setup")
+	runShell(t, "../../bin/quic", "host", "new", vmIP, "--devices", VMDevices)
+	hostSetupOutput := runQuicHostSetupWithAck(t, QuicTemplateVM)
 	t.Log(hostSetupOutput)
-	t.Log("✓ Finished quic host setup")
 
-	reinstallQuicd(t, QuicTemplateVMName)
+	reinstallQuicd(t, QuicTemplateVM)
 
 	// Create template
 	templateName := fmt.Sprintf("test-%d", time.Now().UnixNano())
@@ -62,7 +58,7 @@ func TestQuicTemplateSetup(t *testing.T) {
 
 	// Verify ZFS dataset was created on the VM (tank/test-template)
 	datasetName := fmt.Sprintf("tank/%s", templateName)
-	datasetCheckOutput := runShell(t, "multipass", "exec", QuicTemplateVMName, "--", "sudo", "zfs", "list", datasetName)
+	datasetCheckOutput := runShell(t, "multipass", "exec", QuicTemplateVM, "--", "sudo", "zfs", "list", datasetName)
 	require.Contains(t, datasetCheckOutput, datasetName, "ZFS dataset should exist after template setup")
 
 	// Verify template restore directory structure
@@ -70,22 +66,22 @@ func TestQuicTemplateSetup(t *testing.T) {
 
 	// Check that metadata file was created
 	metadataFile := fmt.Sprintf("%s/.quic-init-meta.json", restoreMount)
-	runShell(t, "multipass", "exec", QuicTemplateVMName, "--", "sudo", "test", "-f", metadataFile)
+	runShell(t, "multipass", "exec", QuicTemplateVM, "--", "sudo", "test", "-f", metadataFile)
 
 	// Read and verify metadata content
-	metadataOutput := runShell(t, "multipass", "exec", QuicTemplateVMName, "--", "sudo", "cat", metadataFile)
+	metadataOutput := runShell(t, "multipass", "exec", QuicTemplateVM, "--", "sudo", "cat", metadataFile)
 	require.Contains(t, metadataOutput, templateName)
 	require.Contains(t, metadataOutput, "port")
 	require.Contains(t, metadataOutput, "service_name")
 
 	// Verify PostgreSQL data directory was restored
-	runShell(t, "multipass", "exec", QuicTemplateVMName, "--", "sudo", "test", "-d", restoreMount)
-	runShell(t, "multipass", "exec", QuicTemplateVMName, "--", "sudo", "test", "-f", fmt.Sprintf("%s/postgresql.conf", restoreMount))
-	runShell(t, "multipass", "exec", QuicTemplateVMName, "--", "sudo", "test", "-f", fmt.Sprintf("%s/PG_VERSION", restoreMount))
+	runShell(t, "multipass", "exec", QuicTemplateVM, "--", "sudo", "test", "-d", restoreMount)
+	runShell(t, "multipass", "exec", QuicTemplateVM, "--", "sudo", "test", "-f", fmt.Sprintf("%s/postgresql.conf", restoreMount))
+	runShell(t, "multipass", "exec", QuicTemplateVM, "--", "sudo", "test", "-f", fmt.Sprintf("%s/PG_VERSION", restoreMount))
 
 	// Verify PostgreSQL service was created and started
 	serviceName := fmt.Sprintf("postgresql-%s", templateName)
-	serviceStatusOutput := runShell(t, "multipass", "exec", QuicTemplateVMName, "--", "sudo", "systemctl", "is-active", serviceName)
+	serviceStatusOutput := runShell(t, "multipass", "exec", QuicTemplateVM, "--", "sudo", "systemctl", "is-active", serviceName)
 	require.Contains(t, serviceStatusOutput, "active")
 
 	// Extract port from metadata to test connection
@@ -96,19 +92,19 @@ func TestQuicTemplateSetup(t *testing.T) {
 	require.True(t, ok, "port should be present in metadata")
 
 	// Test PostgreSQL readiness
-	runShell(t, "multipass", "exec", QuicTemplateVMName, "--", "sudo", "-u", "postgres", "pg_isready", "-p", fmt.Sprintf("%.0f", port))
+	runShell(t, "multipass", "exec", QuicTemplateVM, "--", "sudo", "-u", "postgres", "pg_isready", "-p", fmt.Sprintf("%.0f", port))
 
 	// Verify we can query the test data
-	queryOutput := runShell(t, "multipass", "exec", QuicTemplateVMName, "--", "sudo", "-u", "postgres", "psql", "-p", fmt.Sprintf("%.0f", port), "-d", "quic_test", "-c", "SELECT COUNT(*) FROM users;")
+	queryOutput := runShell(t, "multipass", "exec", QuicTemplateVM, "--", "sudo", "-u", "postgres", "psql", "-p", fmt.Sprintf("%.0f", port), "-d", "quic_test", "-c", "SELECT COUNT(*) FROM users;")
 	require.Contains(t, queryOutput, "5", "Should have 5 users from cloud-init setup")
 
 	// standby.signal - Should exist
 	standbySignalPath := fmt.Sprintf("%s/standby.signal", restoreMount)
-	runShell(t, "multipass", "exec", QuicTemplateVMName, "--", "sudo", "test", "-f", standbySignalPath)
+	runShell(t, "multipass", "exec", QuicTemplateVM, "--", "sudo", "test", "-f", standbySignalPath)
 
 	// postgresql.auto.conf
 	autoConfPath := fmt.Sprintf("%s/postgresql.auto.conf", restoreMount)
-	autoConfOutput := runShell(t, "multipass", "exec", QuicTemplateVMName, "--", "sudo", "cat", autoConfPath)
+	autoConfOutput := runShell(t, "multipass", "exec", QuicTemplateVM, "--", "sudo", "cat", autoConfPath)
 	if !strings.Contains(autoConfOutput, "file not found") {
 		require.NotContains(t, autoConfOutput, "# Clone instance - recovery disabled",
 			"postgresql.auto.conf should not contain clone-specific configuration")

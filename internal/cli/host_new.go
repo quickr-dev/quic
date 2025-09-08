@@ -12,7 +12,7 @@ import (
 
 var hostNewCmd = &cobra.Command{
 	Use:   "new <ip>",
-	Short: "Add a new host to quic configuration",
+	Short: "[ssh] Add a new host to quic configuration",
 	Args:  cobra.ExactArgs(1),
 	RunE:  runHostNew,
 }

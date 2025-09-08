@@ -1,6 +1,7 @@
 package e2e_cli
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
@@ -13,6 +14,16 @@ func runQuic(t *testing.T, args ...string) (string, error) {
 	output, err := exec.Command(cmdArgs[0], cmdArgs[1:]...).CombinedOutput()
 
 	return string(output), err
+}
+
+func runQuicHostSetupWithAck(t *testing.T, vmName string, args ...string) string {
+	cmdArgs := append([]string{"host", "setup"}, args...)
+	cmd := fmt.Sprintf("echo 'ack' | time ../../bin/quic %s", strings.Join(cmdArgs, " "))
+	output := runShell(t, "bash", "-c", cmd)
+	t.Log(output)
+	reinstallQuicd(t, vmName)
+
+	return output
 }
 
 func runShell(t *testing.T, command string, args ...string) string {

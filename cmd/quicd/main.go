@@ -14,6 +14,7 @@ import (
 
 	"github.com/quickr-dev/quic/internal/agent"
 	"github.com/quickr-dev/quic/internal/auth"
+	"github.com/quickr-dev/quic/internal/db"
 	"github.com/quickr-dev/quic/internal/server"
 	pb "github.com/quickr-dev/quic/proto"
 )
@@ -26,6 +27,15 @@ func main() {
 }
 
 func runDaemon() error {
+	// Initialize database
+	database, err := db.InitDB()
+	if err != nil {
+		return fmt.Errorf("failed to initialize database: %w", err)
+	}
+	defer database.Close()
+
+	log.Println("✓ Init Database")
+
 	// Load TLS credentials
 	creds, err := credentials.NewServerTLSFromFile(
 		"/etc/quic/certs/server.crt",
