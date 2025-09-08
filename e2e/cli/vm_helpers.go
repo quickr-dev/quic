@@ -16,6 +16,7 @@ const (
 	QuicHostVMName     = "quic-host"
 	QuicHost2VMName    = "quic-host2"
 	QuicTemplateVMName = "quic-template"
+	TestDevices        = "/tmp/disk1,/tmp/disk2"
 )
 
 func ensureVMRunning(t *testing.T, vmName string) string {
@@ -36,7 +37,6 @@ func ensureFreshVM(t *testing.T, vmName string) string {
 		recreateVM(t, vmName)
 		createSnapshot(t, vmName, SnapshotName)
 	}
-	setupTestDisks(t, vmName)
 
 	return getVMIP(t, vmName)
 }
@@ -47,7 +47,6 @@ func recreateVM(t *testing.T, vmName string) string {
 	}
 	launchVM(t, vmName)
 	setupSSHAccess(t, vmName)
-	setupTestDisks(t, vmName)
 
 	return getVMIP(t, vmName)
 }
@@ -126,19 +125,19 @@ func addKeyToSSHAgent(t *testing.T, keyPath string) {
 
 func setupTestDisks(t *testing.T, vmName string) {
 	commands := [][]string{
-		{"multipass", "exec", vmName, "--", "sudo", "bash", "-c", "mkdir -p /tmp/test-disks"},
-		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "fallocate -l 100M /tmp/test-disks/disk1.img"},
-		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "fallocate -l 100M /tmp/test-disks/disk2.img"},
-		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "fallocate -l 100M /tmp/test-disks/disk3.img"},
-		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "losetup /dev/loop10 /tmp/test-disks/disk1.img"},
-		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "losetup /dev/loop11 /tmp/test-disks/disk2.img"},
-		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "losetup /dev/loop12 /tmp/test-disks/disk3.img"},
+		{"multipass", "exec", vmName, "--", "sudo", "bash", "-c", "mkdir -p /tmp"},
+		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "truncate -s 1G /tmp/disk1"},
+		{"timeout", "5", "multipass", "exec", vmName, "--", "sudo", "bash", "-c", "truncate -s 1G /tmp/disk2"},
 	}
 
 	for _, cmdArgs := range commands {
 		t.Logf("Running '%v'", cmdArgs)
 		runShell(t, cmdArgs[0], cmdArgs[1:]...)
 	}
+
+	runInVM(t, vmName, "sudo test -f /tmp/disk1")
+	runInVM(t, vmName, "sudo test -f /tmp/disk2")
+
 	t.Log("✓ Setup disks done")
 }
 
@@ -155,11 +154,13 @@ func stopVM(t *testing.T, vmName string) {
 func startVM(t *testing.T, vmName string) {
 	t.Logf("Starting VM %s...", vmName)
 	runShell(t, "multipass", "start", vmName)
+	setupTestDisks(t, vmName)
 }
 
 func launchVM(t *testing.T, vmName string) {
 	t.Logf("Creating VM %s...", vmName)
 	runShell(t, "timeout", "60", "multipass", "launch", "--name", vmName, "--disk", "15G", "--memory", "1G", "--cpus", "1")
+	setupTestDisks(t, vmName)
 }
 
 func deleteVM(t *testing.T, vmName string) {
@@ -193,9 +194,7 @@ func ensureClonedVM(t *testing.T, sourceVM, destVM string) string {
 		return getVMIP(t, destVM)
 	}
 
-	// Clone from source VM
 	cloneVM(t, sourceVM, destVM)
-	setupTestDisks(t, destVM)
 	return getVMIP(t, destVM)
 }
 

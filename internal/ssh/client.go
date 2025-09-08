@@ -233,3 +233,11 @@ func (c *Client) GetAvailableDevices(devices []BlockDevice) []BlockDevice {
 	}
 	return available
 }
+
+func (c *Client) TestPath(path string) error {
+	_, err := c.RunCommand(fmt.Sprintf("test -e %s", path))
+	if err != nil {
+		return fmt.Errorf("path does not exist or is not accessible")
+	}
+	return nil
+}

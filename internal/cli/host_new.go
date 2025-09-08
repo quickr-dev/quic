@@ -18,14 +18,13 @@ var hostNewCmd = &cobra.Command{
 }
 
 func init() {
-	hostNewCmd.Flags().String("devices", "", "Comma-separated list of device names (e.g., loop10,loop11)")
+	hostNewCmd.Flags().String("devices", "", "Comma-separated list of full device paths (e.g., /dev/nvme0n1,/path/to/disk)")
 	hostNewCmd.Flags().String("alias", "default", "Alias for the host (default: 'default')")
 }
 
 func runHostNew(cmd *cobra.Command, args []string) error {
 	ip := args[0]
 
-	// Validate IP format
 	if ip == "" {
 		return fmt.Errorf("host IP cannot be empty")
 	}
@@ -52,22 +51,16 @@ func runHostNew(cmd *cobra.Command, args []string) error {
 	var selectedDevices []string
 
 	if devicesFlag != "" {
-		// Use specified devices from flag
 		specifiedDevices := strings.Split(devicesFlag, ",")
 		for _, device := range specifiedDevices {
 			device = strings.TrimSpace(device)
-			// Validate that the device exists and is available
-			found := false
-			for _, d := range devices {
-				if d.Name == device && d.Status == ssh.Available {
-					selectedDevices = append(selectedDevices, device)
-					found = true
-					break
-				}
+
+			// Validate path exists on the host
+			err := client.TestPath(device)
+			if err != nil {
+				return fmt.Errorf("device path '%s' not found or not accessible: %w", device, err)
 			}
-			if !found {
-				return fmt.Errorf("device '%s' not found or not available", device)
-			}
+			selectedDevices = append(selectedDevices, device)
 		}
 	} else {
 		// Interactive device selection

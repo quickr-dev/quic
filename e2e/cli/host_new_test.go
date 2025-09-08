@@ -13,7 +13,7 @@ func TestQuicHostNew(t *testing.T) {
 
 	t.Run("successful host addition", func(t *testing.T) {
 		cleanupQuicConfig(t)
-		output, err := runQuic(t, "host", "new", vmIP, "--devices", "loop10,loop11")
+		output, err := runQuic(t, "host", "new", vmIP, "--devices", TestDevices)
 
 		require.NoError(t, err, "quic host new should succeed\nOutput: %s", output)
 

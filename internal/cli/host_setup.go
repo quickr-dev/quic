@@ -128,8 +128,7 @@ func setupHost(host config.QuicHost, username string) error {
 	}
 	defer os.Remove(inventoryFile)
 
-	devicePaths := convertDevicesToPaths(host.Devices)
-	extraVars := fmt.Sprintf("zfs_devices=%s pg_version=16", devicePaths)
+	extraVars := fmt.Sprintf("zfs_devices=%s pg_version=16", strings.Join(host.Devices, ","))
 
 	cmd := exec.Command("ansible-playbook",
 		"-i", inventoryFile,
@@ -163,13 +162,6 @@ func createInventoryFile(host config.QuicHost, username string) (string, error) 
 	return inventoryFile, os.WriteFile(inventoryFile, []byte(inventoryContent), 0600)
 }
 
-func convertDevicesToPaths(devices []string) string {
-	paths := make([]string, len(devices))
-	for i, device := range devices {
-		paths[i] = "/dev/" + device
-	}
-	return strings.Join(paths, ",")
-}
 
 func validateQuicJson(cmd *cobra.Command, quicConfig *config.QuicConfig) error {
 	aliases := make(map[string]bool)

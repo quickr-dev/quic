@@ -1,8 +1,8 @@
 package e2e_cli
 
 import (
-	"fmt"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,8 +23,8 @@ func runShell(t *testing.T, command string, args ...string) string {
 	return string(output)
 }
 
-func runInVM(t *testing.T, vmName string, args ...string) string {
-	cmd := exec.Command("multipass", "exec", vmName, "--", "bash", "-c", fmt.Sprintf("su quic -c '%s'", args))
+func runInVM(t *testing.T, vmName string, command ...string) string {
+	cmd := exec.Command("multipass", "exec", vmName, "--", "bash", "-c", strings.Join(command, " "))
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(output))
 

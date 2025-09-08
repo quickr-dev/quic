@@ -19,7 +19,7 @@ func TestQuicTemplateSetup(t *testing.T) {
 	t.Log("Rm quic.json")
 	cleanupQuicConfig(t)
 	t.Log("Running quic host new")
-	runShell(t, "../../bin/quic", "host", "new", vmIP, "--devices", "loop10,loop11")
+	runShell(t, "../../bin/quic", "host", "new", vmIP, "--devices", TestDevices)
 	t.Log("Running quic host setup...")
 	hostSetupOutput := runShell(t, "time", "bash", "-c", "echo 'ack' | ../../bin/quic host setup")
 	t.Log(hostSetupOutput)
