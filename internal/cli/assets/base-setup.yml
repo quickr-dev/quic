@@ -159,7 +159,7 @@
           failed_when: zpool_result.rc != 0
 
         - name: Configure tank pool properties
-          command: timeout 10 zfs set {{ item }} tank
+          command: timeout 5 zfs set {{ item }} tank
           loop:
             - recordsize=8K
             - compression=lz4
