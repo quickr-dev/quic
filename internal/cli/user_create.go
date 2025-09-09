@@ -68,28 +68,17 @@ func createUserOnHost(host config.QuicHost, name, token string) error {
 		return fmt.Errorf("failed to connect to host %s: %w", host.IP, err)
 	}
 
-	// Create SQL in a file to execute on host
-	tmpToken, _ := generateToken()
-	tmpFile := "/tmp/quic_user_" + tmpToken[:8] + ".sql"
+	escapedName := strings.ReplaceAll(name, "'", "''")
+	escapedToken := strings.ReplaceAll(token, "'", "''")
 
-	sqlContent := `INSERT INTO users (name, token) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET token = excluded.token, created_at = CURRENT_TIMESTAMP;`
-	writeFileCmd := fmt.Sprintf("cat > %s << 'EOF'\n%s\nEOF", tmpFile, sqlContent)
-	if _, err := client.RunCommand(writeFileCmd); err != nil {
-		return fmt.Errorf("failed to write SQL file: %w", err)
-	}
+	sqlQuery := fmt.Sprintf(`INSERT INTO users (name, token) VALUES ('%s', '%s') ON CONFLICT(name) DO UPDATE SET token = excluded.token, created_at = CURRENT_TIMESTAMP;`,
+		escapedName, escapedToken)
 
-	// Execute with parameters using sqlite3 .param
-	execCmd := fmt.Sprintf(`sqlite3 %s -cmd ".param set 1 '%s'" -cmd ".param set 2 '%s'" < %s`,
-		db.DBPath,
-		strings.ReplaceAll(name, "'", "''"),
-		strings.ReplaceAll(token, "'", "''"),
-		tmpFile)
+	execCmd := fmt.Sprintf(`sqlite3 %s "%s"`, db.DBPath, sqlQuery)
 
 	if _, err := client.RunCommand(execCmd); err != nil {
 		return fmt.Errorf("failed to create user in database: %w", err)
 	}
-
-	client.RunCommand(fmt.Sprintf("rm -f %s", tmpFile))
 
 	return nil
 }

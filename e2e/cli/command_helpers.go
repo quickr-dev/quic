@@ -25,7 +25,6 @@ func runQuicHostSetupWithAck(t *testing.T, vmNames []string, args ...string) str
 	cmdArgs := append([]string{"host", "setup"}, args...)
 	cmd := fmt.Sprintf("echo 'ack' | time ../../bin/quic %s", strings.Join(cmdArgs, " "))
 	output := runShell(t, "bash", "-c", cmd)
-	t.Log(output)
 
 	for _, vmName := range vmNames {
 		// basic setup check
@@ -40,12 +39,12 @@ func runQuicHostSetupWithAck(t *testing.T, vmNames []string, args ...string) str
 
 func runShell(t *testing.T, command string, args ...string) string {
 	cmd := exec.Command(command, args...)
-	
+
 	if os.Getenv("DEBUG") != "" {
-		t.Logf("Running: %s %v", command, args)
+		t.Logf("$ %s %v", command, args)
 		return runShellStreaming(t, cmd)
 	}
-	
+
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(output))
 	return string(output)
@@ -56,13 +55,13 @@ func runShellStreaming(t *testing.T, cmd *exec.Cmd) string {
 	require.NoError(t, err)
 	stderr, err := cmd.StderrPipe()
 	require.NoError(t, err)
-	
+
 	err = cmd.Start()
 	require.NoError(t, err)
-	
+
 	var output strings.Builder
 	done := make(chan bool)
-	
+
 	go func() {
 		defer close(done)
 		scanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
@@ -72,10 +71,10 @@ func runShellStreaming(t *testing.T, cmd *exec.Cmd) string {
 			output.WriteString(line + "\n")
 		}
 	}()
-	
+
 	err = cmd.Wait()
 	<-done
-	
+
 	finalOutput := output.String()
 	require.NoError(t, err, finalOutput)
 	return finalOutput

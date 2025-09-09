@@ -12,7 +12,8 @@ import (
 
 func TestQuicUserCreate(t *testing.T) {
 	vmIP := ensureVMRunning(t, QuicUserVM)
-	// need to run host setup to start quicd that inits the SQLite db
+	// must run `quic host setup` to init the db
+	cleanupQuicConfig(t)
 	runQuic(t, "host", "new", vmIP, "--devices", VMDevices)
 	runQuicHostSetupWithAck(t, []string{QuicUserVM})
 

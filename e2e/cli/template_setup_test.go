@@ -17,7 +17,7 @@ func TestQuicTemplateSetup(t *testing.T) {
 
 	// Setup host
 	cleanupQuicConfig(t)
-	runShell(t, "../../bin/quic", "host", "new", vmIP, "--devices", VMDevices)
+	runQuic(t, "host", "new", vmIP, "--devices", VMDevices)
 	hostSetupOutput := runQuicHostSetupWithAck(t, []string{QuicTemplateVM})
 	t.Log(hostSetupOutput)
 
@@ -43,7 +43,7 @@ func TestQuicTemplateSetup(t *testing.T) {
 	defer os.Unsetenv("CB_API_KEY")
 
 	t.Log("Running quic template setup...")
-	templateSetupOutput := runShell(t, "time", "../../bin/quic", "template", "setup", templateName)
+	templateSetupOutput, err := runQuic(t, "template", "setup", templateName)
 	require.NoError(t, err, "quic template setup should succeed\nOutput: %s", templateSetupOutput)
 	t.Log(templateSetupOutput)
 	t.Log("✓ Finished quic template setup")

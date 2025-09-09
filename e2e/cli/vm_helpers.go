@@ -147,7 +147,17 @@ func stopVM(t *testing.T, vmName string) {
 	runShell(t, "multipass", "stop", vmName)
 }
 
+func isVMRunning(t *testing.T, vmName string) bool {
+	output := runShell(t, "bash", "-c", fmt.Sprintf("multipass info %s | grep State | awk '{print $2}'", vmName))
+	state := strings.TrimSpace(output)
+	return state == "Running"
+}
+
 func startVM(t *testing.T, vmName string) {
+	if isVMRunning(t, vmName) {
+		t.Logf("VM %s is already running", vmName)
+		return
+	}
 	t.Logf("Starting VM %s...", vmName)
 	runShell(t, "multipass", "start", vmName)
 	setupTestDisks(t, vmName)
