@@ -140,9 +140,7 @@
         mode: "0600"
 
     - name: Check if tank pool exists and is encrypted
-      shell: |
-        set -e
-        zpool status tank >/dev/null 2>&1 && zfs get -H encryption tank | grep -q aes
+      shell: zfs get -H -o value encryption tank 2>/dev/null | grep -q aes-256-gcm
       register: tank_status
       failed_when: false
       changed_when: false
