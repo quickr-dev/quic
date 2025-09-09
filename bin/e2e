@@ -5,6 +5,7 @@ if [ $# -eq 0 ]; then
     echo "Examples:"
     echo "  $0 e2e/cli/user_create_test.go"
     echo "  $0 TestQuicUserCreate/successful_user_creation"
+    echo "  DEBUG=1 $0 TestQuicHostSetup  # Enable debug output"
     exit 1
 fi
 
@@ -14,11 +15,11 @@ if test -f "$1"; then
     # Run all tests from the specified file by running the package and extracting test names
     test_functions=$(grep -o 'func Test[A-Za-z0-9_]*' "$1" | sed 's/func //' | tr '\n' '|' | sed 's/|$//')
     if [ -n "$test_functions" ]; then
-        go test ./e2e/cli -v -count=1 -run "^($test_functions)$"
+        env go test ./e2e/cli -v -count=1 -run "^($test_functions)$"
     else
         echo "No test functions found in $1"
         exit 1
     fi
 else
-    go test ./e2e/cli -v -count=1 -run "$1"
+    env go test ./e2e/cli -v -count=1 -run "$1"
 fi
