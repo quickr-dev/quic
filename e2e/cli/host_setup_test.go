@@ -16,11 +16,11 @@ func TestQuicHostSetup(t *testing.T) {
 		require.NoError(t, err, output)
 
 		// run once
-		output = runQuicHostSetupWithAck(t, QuicHostVM)
+		output = runQuicHostSetupWithAck(t, []string{QuicHostVM})
 		require.Contains(t, output, "Setup completed: 1 successful")
 
 		// can rerun just fine
-		output = runQuicHostSetupWithAck(t, QuicHostVM)
+		output = runQuicHostSetupWithAck(t, []string{QuicHostVM})
 		require.Contains(t, output, "Setup completed: 1 successful")
 	})
 
@@ -39,7 +39,7 @@ func TestQuicHostSetup(t *testing.T) {
 		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices, "--alias", "test-host")
 		require.NoError(t, err, output)
 
-		output = runQuicHostSetupWithAck(t, QuicHostVM, "--hosts", "test-host")
+		output = runQuicHostSetupWithAck(t, []string{QuicHostVM}, "--hosts", "test-host")
 		require.Contains(t, output, "Setup completed: 1 successful")
 		validateHostSetup(t, QuicHostVM)
 	})
@@ -49,7 +49,7 @@ func TestQuicHostSetup(t *testing.T) {
 		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices)
 		require.NoError(t, err, output)
 
-		output = runQuicHostSetupWithAck(t, QuicHostVM, "--hosts", quicHostIP)
+		output = runQuicHostSetupWithAck(t, []string{QuicHostVM}, "--hosts", quicHostIP)
 		require.Contains(t, output, "Setup completed: 1 successful")
 		validateHostSetup(t, QuicHostVM)
 	})
@@ -100,7 +100,7 @@ func TestQuicHostSetup(t *testing.T) {
 		require.NoError(t, err, output)
 
 		// Setup all hosts
-		output = runQuicHostSetupWithAck(t, QuicHostVM, "--hosts", "all")
+		output = runQuicHostSetupWithAck(t, []string{QuicHostVM, QuicHost2VM}, "--hosts", "all")
 		require.Contains(t, output, "Setup completed:", "Setup should complete for all hosts")
 
 		// Validate complete setup on both hosts using reusable function

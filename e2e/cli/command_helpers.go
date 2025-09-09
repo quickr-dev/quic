@@ -16,12 +16,21 @@ func runQuic(t *testing.T, args ...string) (string, error) {
 	return string(output), err
 }
 
-func runQuicHostSetupWithAck(t *testing.T, vmName string, args ...string) string {
+// quic host setup downloads quicd from Github releases,
+// so we replace it with our local code for testing.
+func runQuicHostSetupWithAck(t *testing.T, vmNames []string, args ...string) string {
 	cmdArgs := append([]string{"host", "setup"}, args...)
 	cmd := fmt.Sprintf("echo 'ack' | time ../../bin/quic %s", strings.Join(cmdArgs, " "))
 	output := runShell(t, "bash", "-c", cmd)
 	t.Log(output)
-	reinstallQuicd(t, vmName)
+
+	for _, vmName := range vmNames {
+		// basic setup check
+		output := runInVM(t, vmName, "zfs", "get", "-H", "-o", "value", "encryption", "tank")
+		require.Equal(t, "aes-256-gcm\n", output, "tank should be encrypted with aes-256-gcm")
+
+		replaceDownloadedQuicdWithLocalVersion(t, vmName)
+	}
 
 	return output
 }

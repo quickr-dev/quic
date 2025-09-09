@@ -189,7 +189,7 @@ func ensureClonedVM(t *testing.T, sourceVM, destVM string) string {
 	return getVMIP(t, destVM)
 }
 
-func reinstallQuicd(t *testing.T, vmName string) {
+func replaceDownloadedQuicdWithLocalVersion(t *testing.T, vmName string) {
 	t.Log("Reinstalling agent...")
 
 	// Detect VM architecture
@@ -215,6 +215,10 @@ func reinstallQuicd(t *testing.T, vmName string) {
 	runShell(t, "timeout", "5s", "multipass", "exec", vmName, "--", "sudo", "chmod", "+x", "/usr/local/bin/quicd")
 	runShell(t, "timeout", "5s", "multipass", "exec", vmName, "--", "sudo", "systemctl", "enable", "quicd")
 	runShell(t, "timeout", "5s", "multipass", "exec", vmName, "--", "sudo", "systemctl", "start", "quicd")
+
+	// ensure quicd becomes active and creates SQLite db
+	runInVM(t, vmName, "timeout 5 bash -c 'while ! systemctl is-active quicd >/dev/null 2>&1; do sleep 0.1; done'")
+	runInVM(t, vmName, "timeout 5 bash -c 'while ! test -f /etc/quic/db.sqlite; do sleep 0.1; done'")
 
 	t.Log("✓ Agent reinstalled")
 }

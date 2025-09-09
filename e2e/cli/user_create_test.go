@@ -14,7 +14,7 @@ func TestQuicUserCreate(t *testing.T) {
 	vmIP := ensureVMRunning(t, QuicUserVM)
 	// need to run host setup to start quicd that inits the SQLite db
 	runQuic(t, "host", "new", vmIP, "--devices", VMDevices)
-	runQuicHostSetupWithAck(t, QuicUserVM)
+	runQuicHostSetupWithAck(t, []string{QuicUserVM})
 
 	t.Run("successful user creation", func(t *testing.T) {
 		output, err := runQuic(t, "user", "create", "John Doe")

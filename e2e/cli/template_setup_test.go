@@ -18,10 +18,8 @@ func TestQuicTemplateSetup(t *testing.T) {
 	// Setup host
 	cleanupQuicConfig(t)
 	runShell(t, "../../bin/quic", "host", "new", vmIP, "--devices", VMDevices)
-	hostSetupOutput := runQuicHostSetupWithAck(t, QuicTemplateVM)
+	hostSetupOutput := runQuicHostSetupWithAck(t, []string{QuicTemplateVM})
 	t.Log(hostSetupOutput)
-
-	reinstallQuicd(t, QuicTemplateVM)
 
 	// Create template
 	templateName := fmt.Sprintf("test-%d", time.Now().UnixNano())

@@ -25,10 +25,6 @@ vm-rebuild-agent:
 e2e-agent: vm-rebuild-agent
 	multipass exec quic-e2e -- sudo su - quic -s /bin/bash -c "cd /var/lib/quic/quic && go test ./e2e/agent -v" 2>&1
 
-e2e-cli:
-	go build -o bin/quic ./cmd/quic
-	go test ./e2e/cli -v -count=1
-
 e2e: e2e-agent e2e-cli e2e-init
 
 .PHONY: proto
