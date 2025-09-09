@@ -17,7 +17,7 @@ const (
 	QuicHost2VM    = "quic-host2"
 	QuicTemplateVM = "quic-template"
 	QuicUserVM     = "quic-user"
-	VMDevices      = "/tmp/disk1,/tmp/disk2"
+	VMDevices      = "/dev/loop101,/dev/loop102"
 )
 
 func ensureVMRunning(t *testing.T, vmName string) string {
@@ -125,9 +125,14 @@ func addKeyToSSHAgent(t *testing.T, keyPath string) {
 }
 
 func setupTestDisks(t *testing.T, vmName string) {
-	for device := range strings.SplitSeq(VMDevices, ",") {
-		runInVM(t, vmName, fmt.Sprintf("timeout 5 sudo truncate -s 1G %s", device))
-		runInVM(t, vmName, fmt.Sprintf("timeout 5 sudo test -f %s", device))
+	tmpFiles := []string{"/tmp/disk1", "/tmp/disk2"}
+	loopDevices := strings.Split(VMDevices, ",")
+
+	for i, tmpFile := range tmpFiles {
+		loopDevice := loopDevices[i]
+		runInVM(t, vmName, fmt.Sprintf("timeout 5 sudo truncate -s 1G %s", tmpFile))
+		runInVM(t, vmName, fmt.Sprintf("timeout 5 sudo losetup %s %s", loopDevice, tmpFile))
+		runInVM(t, vmName, fmt.Sprintf("timeout 5 sudo test -b %s", loopDevice))
 	}
 	t.Log("✓ Setup disks")
 }
@@ -207,7 +212,7 @@ func replaceDownloadedQuicdWithLocalVersion(t *testing.T, vmName string) {
 		t.Fatalf("Unsupported VM architecture: %s", vmArch)
 	}
 
-	runShell(t, "timeout", "5s", "bash", "-c", fmt.Sprintf("cd ../../ && GOOS=linux GOARCH=%s go build -o bin/quicd-linux ./cmd/quicd", goArch))
+	runShell(t, "timeout", "30s", "bash", "-c", fmt.Sprintf("cd ../../ && GOOS=linux GOARCH=%s go build -o bin/quicd-linux ./cmd/quicd", goArch))
 	runShell(t, "timeout", "5s", "multipass", "transfer", "../../bin/quicd-linux", vmName+":/tmp/quicd")
 	runShell(t, "timeout", "5s", "bash", "-c", fmt.Sprintf("multipass exec %s -- sudo systemctl stop quicd || true", vmName))
 	runShell(t, "timeout", "5s", "multipass", "exec", vmName, "--", "sudo", "mv", "/tmp/quicd", "/usr/local/bin/quicd")
