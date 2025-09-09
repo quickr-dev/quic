@@ -18,6 +18,9 @@ import (
 //go:embed assets/base-setup.yml
 var baseSetupPlaybook string
 
+//go:embed assets/ansible.cfg
+var ansibleConfig string
+
 var hostSetupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "[ssh] Setup infrastructure on configured hosts",
@@ -122,6 +125,12 @@ func setupHost(host config.QuicHost, username string) error {
 	}
 	defer os.Remove(playbookFile)
 
+	configFile, err := writeAnsibleConfigToTemp()
+	if err != nil {
+		return fmt.Errorf("failed to write ansible config: %w", err)
+	}
+	defer os.Remove(configFile)
+
 	inventoryFile, err := createInventoryFile(host, username)
 	if err != nil {
 		return fmt.Errorf("failed to create inventory: %w", err)
@@ -137,6 +146,7 @@ func setupHost(host config.QuicHost, username string) error {
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Env = append(os.Environ(), "ANSIBLE_CONFIG="+configFile)
 
 	return cmd.Run()
 }
@@ -144,6 +154,11 @@ func setupHost(host config.QuicHost, username string) error {
 func writePlaybookToTemp() (string, error) {
 	tmpFile := filepath.Join(os.TempDir(), "quic-base-setup-"+uuid.New().String()+".yml")
 	return tmpFile, os.WriteFile(tmpFile, []byte(baseSetupPlaybook), 0644)
+}
+
+func writeAnsibleConfigToTemp() (string, error) {
+	tmpFile := filepath.Join(os.TempDir(), "quic-ansible-"+uuid.New().String()+".cfg")
+	return tmpFile, os.WriteFile(tmpFile, []byte(ansibleConfig), 0644)
 }
 
 func createInventoryFile(host config.QuicHost, username string) (string, error) {
