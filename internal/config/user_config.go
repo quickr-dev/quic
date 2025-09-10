@@ -9,22 +9,22 @@ import (
 	"time"
 )
 
-type Config struct {
+type UserConfig struct {
 	AuthToken       string                 `json:"authToken"`
 	SelectedHost    string                 `json:"selectedHost"`
 	DefaultTemplate string                 `json:"defaultTemplate,omitempty"`
 	LastServerCheck time.Time              `json:"lastServerCheck"`
-	HostMetrics     map[string]HostMetrics `json:"hostsMetrics"`
+	HostMetrics     map[string]hostMetrics `json:"hostsMetrics"`
 }
 
-type HostMetrics struct {
+type hostMetrics struct {
 	LastLatencyMS int       `json:"last_latency_ms"`
 	LastSuccess   time.Time `json:"last_success"`
 }
 
 const (
-	ConfigDirName  = "quic"
-	ConfigFileName = "config.json"
+	configDirName  = "quic"
+	configFileName = "config.json"
 )
 
 func getConfigDir() (string, error) {
@@ -35,10 +35,10 @@ func getConfigDir() (string, error) {
 
 	// Use XDG config directory if available
 	if xdgConfig := os.Getenv("XDG_CONFIG_HOME"); xdgConfig != "" {
-		return filepath.Join(xdgConfig, ConfigDirName), nil
+		return filepath.Join(xdgConfig, configDirName), nil
 	}
 
-	return filepath.Join(homeDir, ".config", ConfigDirName), nil
+	return filepath.Join(homeDir, ".config", configDirName), nil
 }
 
 func getConfigPath() (string, error) {
@@ -46,10 +46,10 @@ func getConfigPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(configDir, ConfigFileName), nil
+	return filepath.Join(configDir, configFileName), nil
 }
 
-func Load() (*Config, error) {
+func Load() (*UserConfig, error) {
 	configPath, err := getConfigPath()
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
-	var config Config
+	var config UserConfig
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func Load() (*Config, error) {
 	return &config, nil
 }
 
-func (c *Config) Save() error {
+func (c *UserConfig) Save() error {
 	configPath, err := getConfigPath()
 	if err != nil {
 		return err
@@ -93,7 +93,7 @@ func (c *Config) Save() error {
 	return os.WriteFile(configPath, data, 0644)
 }
 
-func createDefaultConfig() (*Config, error) {
+func createDefaultConfig() (*UserConfig, error) {
 	// Load project config to get available hosts
 	projectConfig, err := LoadQuicConfig()
 	if err != nil {
@@ -115,15 +115,15 @@ func createDefaultConfig() (*Config, error) {
 		return nil, fmt.Errorf("no servers are reachable")
 	}
 
-	config := &Config{
+	config := &UserConfig{
 		SelectedHost:    host,
 		LastServerCheck: time.Now(),
-		HostMetrics:     make(map[string]HostMetrics),
+		HostMetrics:     make(map[string]hostMetrics),
 	}
 
 	for server, result := range hostResults {
 		if result.err == nil {
-			config.HostMetrics[server] = HostMetrics{
+			config.HostMetrics[server] = hostMetrics{
 				LastLatencyMS: int(result.duration.Milliseconds()),
 				LastSuccess:   time.Now(),
 			}

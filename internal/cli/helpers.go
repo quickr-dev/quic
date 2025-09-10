@@ -6,7 +6,7 @@ import (
 	"github.com/quickr-dev/quic/internal/config"
 )
 
-func getTemplateName(cfg *config.Config, flagValue string) (string, error) {
+func getTemplateName(cfg *config.UserConfig, flagValue string) (string, error) {
 	templateName := flagValue
 	if templateName == "" {
 		templateName = cfg.DefaultTemplate
@@ -17,7 +17,7 @@ func getTemplateName(cfg *config.Config, flagValue string) (string, error) {
 	return templateName, nil
 }
 
-func getRestoreName(cfg *config.Config, flagValue string) (string, error) {
+func getRestoreName(cfg *config.UserConfig, flagValue string) (string, error) {
 	templateName := flagValue
 	if templateName == "" {
 		templateName = cfg.DefaultTemplate

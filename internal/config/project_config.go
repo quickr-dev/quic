@@ -12,7 +12,7 @@ const (
 	QuicSchemaURL      = "https://quic.dev/0.1.0/schema.json"
 )
 
-type QuicConfig struct {
+type ProjectConfig struct {
 	Schema    string     `json:"$schema"`
 	Hosts     []QuicHost `json:"hosts"`
 	Templates []Template `json:"templates"`
@@ -37,7 +37,7 @@ type TemplateProvider struct {
 	ClusterName string `json:"clusterName"`
 }
 
-func LoadQuicConfig() (*QuicConfig, error) {
+func LoadQuicConfig() (*ProjectConfig, error) {
 	configPath := getQuicConfigPath()
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -49,7 +49,7 @@ func LoadQuicConfig() (*QuicConfig, error) {
 		return nil, fmt.Errorf("failed to read quic.json: %w", err)
 	}
 
-	var config QuicConfig
+	var config ProjectConfig
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse quic.json: %w", err)
 	}
@@ -57,7 +57,7 @@ func LoadQuicConfig() (*QuicConfig, error) {
 	return &config, nil
 }
 
-func (c *QuicConfig) Save() error {
+func (c *ProjectConfig) Save() error {
 	configPath := getQuicConfigPath()
 
 	data, err := json.MarshalIndent(c, "", "  ")
@@ -72,7 +72,7 @@ func (c *QuicConfig) Save() error {
 	return nil
 }
 
-func (c *QuicConfig) AddHost(host QuicHost) error {
+func (c *ProjectConfig) AddHost(host QuicHost) error {
 	if err := c.validateHost(host); err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func (c *QuicConfig) AddHost(host QuicHost) error {
 	return nil
 }
 
-func (c *QuicConfig) AddTemplate(template Template) error {
+func (c *ProjectConfig) AddTemplate(template Template) error {
 	if err := c.validateTemplate(template); err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func (c *QuicConfig) AddTemplate(template Template) error {
 	return nil
 }
 
-func (c *QuicConfig) validateHost(host QuicHost) error {
+func (c *ProjectConfig) validateHost(host QuicHost) error {
 	if host.IP == "" {
 		return fmt.Errorf("host IP cannot be empty")
 	}
@@ -120,7 +120,7 @@ func (c *QuicConfig) validateHost(host QuicHost) error {
 	return nil
 }
 
-func (c *QuicConfig) validateTemplate(template Template) error {
+func (c *ProjectConfig) validateTemplate(template Template) error {
 	if template.Name == "" {
 		return fmt.Errorf("template name cannot be empty")
 	}
@@ -155,10 +155,10 @@ func getQuicConfigPath() string {
 	return filepath.Join(".", QuicConfigFileName)
 }
 
-func createDefaultQuicConfig() (*QuicConfig, error) {
+func createDefaultQuicConfig() (*ProjectConfig, error) {
 	fmt.Println("Initializing quic.json")
 
-	config := &QuicConfig{
+	config := &ProjectConfig{
 		Schema:    QuicSchemaURL,
 		Hosts:     []QuicHost{},
 		Templates: []Template{},

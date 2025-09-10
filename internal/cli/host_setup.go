@@ -177,7 +177,7 @@ func createInventoryFile(host config.QuicHost, username string) (string, error) 
 	return inventoryFile, os.WriteFile(inventoryFile, []byte(inventoryContent), 0600)
 }
 
-func validateQuicJson(cmd *cobra.Command, quicConfig *config.QuicConfig) error {
+func validateQuicJson(cmd *cobra.Command, quicConfig *config.ProjectConfig) error {
 	aliases := make(map[string]bool)
 	for _, host := range quicConfig.Hosts {
 		if aliases[host.Alias] {

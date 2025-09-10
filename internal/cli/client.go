@@ -18,7 +18,7 @@ import (
 
 const DefaultTimeout = 10 * time.Second
 
-func validateConfig(cfg *config.Config) error {
+func validateConfig(cfg *config.UserConfig) error {
 	var errors []string
 
 	if cfg.AuthToken == "" {
