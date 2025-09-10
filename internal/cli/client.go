@@ -20,7 +20,7 @@ func getQuicClient() (pb.QuicServiceClient, string, func(), error) {
 		return nil, "", nil, fmt.Errorf("loading config: %w", err)
 	}
 
-	if cfg.SelectedServer == "" {
+	if cfg.SelectedHost == "" {
 		return nil, "", nil, fmt.Errorf("no server selected in config")
 	}
 
@@ -35,12 +35,12 @@ func getQuicClient() (pb.QuicServiceClient, string, func(), error) {
 
 	// Create gRPC connection with TLS
 	conn, err := grpc.Dial(
-		cfg.SelectedServer+":8443",
+		cfg.SelectedHost+":8443",
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		grpc.WithTimeout(5*time.Second),
 	)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("connecting to server %s: %w", cfg.SelectedServer, err)
+		return nil, "", nil, fmt.Errorf("connecting to server %s: %w", cfg.SelectedHost, err)
 	}
 
 	client := pb.NewQuicServiceClient(conn)
@@ -49,7 +49,7 @@ func getQuicClient() (pb.QuicServiceClient, string, func(), error) {
 		conn.Close()
 	}
 
-	return client, cfg.SelectedServer, cleanup, nil
+	return client, cfg.SelectedHost, cleanup, nil
 }
 
 func getAuthContext(cfg *config.Config) context.Context {

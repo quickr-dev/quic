@@ -25,7 +25,7 @@ var lsCmd = &cobra.Command{
 		// Get restore name from flag or config
 		restoreName, _ := cmd.Flags().GetString("restore")
 		if restoreName == "" {
-			restoreName = cfg.SelectedRestore
+			restoreName = cfg.DefaultTemplate
 		}
 
 		client, _, cleanup, err := getQuicClient()

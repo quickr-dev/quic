@@ -10,14 +10,14 @@ import (
 )
 
 type Config struct {
-	SelectedServer  string                   `json:"selected_server"`
-	SelectedRestore string                   `json:"selected_restore,omitempty"`
-	AuthToken       string                   `json:"auth_token"`
-	LastServerCheck time.Time                `json:"last_server_check"`
-	Servers         map[string]ServerMetrics `json:"servers"`
+	AuthToken       string                 `json:"authToken"`
+	SelectedHost    string                 `json:"selectedHost"`
+	DefaultTemplate string                 `json:"defaultTemplate,omitempty"`
+	LastServerCheck time.Time              `json:"lastServerCheck"`
+	HostMetrics     map[string]HostMetrics `json:"hostsMetrics"`
 }
 
-type ServerMetrics struct {
+type HostMetrics struct {
 	LastLatencyMS int       `json:"last_latency_ms"`
 	LastSuccess   time.Time `json:"last_success"`
 }
@@ -26,11 +26,6 @@ const (
 	ConfigDirName  = "quic"
 	ConfigFileName = "config.json"
 )
-
-var AvailableServers = []string{
-	"lhr.quickr.dev",
-	// "gru.quickr.dev",
-}
 
 func getConfigDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
@@ -99,24 +94,37 @@ func (c *Config) Save() error {
 }
 
 func createDefaultConfig() (*Config, error) {
-	// Test both servers and pick the fastest
-	bestServer := selectBestServer(AvailableServers)
-	if bestServer == "" {
+	// Load project config to get available hosts
+	projectConfig, err := LoadQuicConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load project config: %w", err)
+	}
+
+	if len(projectConfig.Hosts) == 0 {
+		return nil, fmt.Errorf("no hosts configured in project config")
+	}
+
+	// Extract host IPs from project config
+	hostIPs := make([]string, len(projectConfig.Hosts))
+	for i, host := range projectConfig.Hosts {
+		hostIPs[i] = host.IP
+	}
+
+	host, hostResults := getLowestLatencyHost(hostIPs)
+	if host == "" {
 		return nil, fmt.Errorf("no servers are reachable")
 	}
 
 	config := &Config{
-		SelectedServer:  bestServer,
+		SelectedHost:    host,
 		LastServerCheck: time.Now(),
-		Servers:         make(map[string]ServerMetrics),
+		HostMetrics:     make(map[string]HostMetrics),
 	}
 
-	// Test all servers and save metrics
-	for _, server := range AvailableServers {
-		latency, err := testServerLatency(server)
-		if err == nil {
-			config.Servers[server] = ServerMetrics{
-				LastLatencyMS: int(latency.Milliseconds()),
+	for server, result := range hostResults {
+		if result.err == nil {
+			config.HostMetrics[server] = HostMetrics{
+				LastLatencyMS: int(result.duration.Milliseconds()),
 				LastSuccess:   time.Now(),
 			}
 		}
@@ -130,31 +138,36 @@ func createDefaultConfig() (*Config, error) {
 	return config, nil
 }
 
-func selectBestServer(servers []string) string {
-	type result struct {
-		server   string
-		duration time.Duration
-		err      error
-	}
+type result struct {
+	server   string
+	duration time.Duration
+	err      error
+}
 
-	results := make(chan result, len(servers))
-
-	for _, server := range servers {
+func getLowestLatencyHost(ips []string) (string, map[string]result) {
+	results := make(chan result, len(ips))
+	for _, server := range ips {
 		go func(s string) {
 			duration, err := testServerLatency(s)
 			results <- result{s, duration, err}
 		}(server)
 	}
 
-	// Return fastest successful connection
-	var fastest result
-	for i := 0; i < len(servers); i++ {
+	serverResults := make(map[string]result)
+	for range ips {
 		r := <-results
-		if r.err == nil && (fastest.server == "" || r.duration < fastest.duration) {
-			fastest = r
+		serverResults[r.server] = r
+	}
+
+	var fastestServer string
+	var fastestDuration time.Duration
+	for server, r := range serverResults {
+		if r.err == nil && (fastestServer == "" || r.duration < fastestDuration) {
+			fastestServer = server
+			fastestDuration = r.duration
 		}
 	}
-	return fastest.server
+	return fastestServer, serverResults
 }
 
 func testServerLatency(server string) (time.Duration, error) {
