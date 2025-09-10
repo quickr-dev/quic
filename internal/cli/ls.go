@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -14,32 +13,26 @@ import (
 var lsCmd = &cobra.Command{
 	Use:   "ls",
 	Short: "List all database checkouts",
-	Long:  "Lists all existing database checkouts with their clone names, creators, and creation timestamps",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.Load()
-		if err != nil {
-			return fmt.Errorf("loading config: %w", err)
-		}
+		return executeList(cmd)
+	},
+}
 
-		// Get restore name from flag or config
-		restoreName, _ := cmd.Flags().GetString("restore")
-		if restoreName == "" {
-			restoreName = cfg.DefaultTemplate
-		}
+func executeList(cmd *cobra.Command) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
 
-		client, _, cleanup, err := getQuicClient()
-		if err != nil {
-			return err
-		}
-		defer cleanup()
+	templateName, _ := cmd.Flags().GetString("template")
+	if templateName == "" {
+		templateName = cfg.DefaultTemplate
+	}
 
-		authCtx := getAuthContext(cfg)
-		ctx, cancel := context.WithTimeout(authCtx, 10*time.Second)
-		defer cancel()
-
+	return executeWithClient(func(client pb.QuicServiceClient, ctx context.Context) error {
 		req := &pb.ListCheckoutsRequest{
-			RestoreName: restoreName,
+			RestoreName: templateName,
 		}
 
 		resp, err := client.ListCheckouts(ctx, req)
@@ -66,9 +59,9 @@ var lsCmd = &cobra.Command{
 		}
 
 		return nil
-	},
+	})
 }
 
 func init() {
-	lsCmd.Flags().String("restore", "", "Name of the restore template to list checkouts from (optional - lists all if not specified)")
+	lsCmd.Flags().String("template", "", "Name of the template template to list checkouts from (optional - lists all if not specified)")
 }

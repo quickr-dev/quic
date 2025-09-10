@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -14,47 +16,66 @@ import (
 	pb "github.com/quickr-dev/quic/proto"
 )
 
-func getQuicClient() (pb.QuicServiceClient, string, func(), error) {
-	cfg, err := config.Load()
-	if err != nil {
-		return nil, "", nil, fmt.Errorf("loading config: %w", err)
+const DefaultTimeout = 10 * time.Second
+
+func validateConfig(cfg *config.Config) error {
+	var errors []string
+
+	if cfg.AuthToken == "" {
+		errors = append(errors, "no auth token configured. Please run 'quic login --token <token>'")
 	}
 
 	if cfg.SelectedHost == "" {
-		return nil, "", nil, fmt.Errorf("no server selected in config")
+		errors = append(errors, "no server selected in config")
 	}
 
-	if cfg.AuthToken == "" {
-		return nil, "", nil, fmt.Errorf("no auth token configured. Please set your auth token in the config file")
+	if cfg.SelectedHost != "" && !isValidHost(cfg.SelectedHost) {
+		errors = append(errors, "selected host has invalid format")
 	}
 
-	// Accept self-signed certs in dev/test environment
+	if len(errors) > 0 {
+		return fmt.Errorf("configuration validation failed: %s", strings.Join(errors, ", "))
+	}
+
+	return nil
+}
+
+func isValidHost(host string) bool {
+	return net.ParseIP(host) != nil
+}
+
+func executeWithClient(fn func(pb.QuicServiceClient, context.Context) error) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
+
+	if err := validateConfig(cfg); err != nil {
+		return err
+	}
+
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true, // Only for dev/test!
+		// base-setup.yml creates self-signed certs so we skip verification
+		InsecureSkipVerify: true,
 	}
 
-	// Create gRPC connection with TLS
 	conn, err := grpc.Dial(
 		cfg.SelectedHost+":8443",
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-		grpc.WithTimeout(5*time.Second),
+		grpc.WithTimeout(DefaultTimeout),
 	)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("connecting to server %s: %w", cfg.SelectedHost, err)
+		return fmt.Errorf("connecting to server %s: %w", cfg.SelectedHost, err)
 	}
+	defer conn.Close()
 
-	client := pb.NewQuicServiceClient(conn)
-
-	cleanup := func() {
-		conn.Close()
-	}
-
-	return client, cfg.SelectedHost, cleanup, nil
-}
-
-func getAuthContext(cfg *config.Config) context.Context {
 	md := metadata.New(map[string]string{
 		"authorization": "Bearer " + cfg.AuthToken,
 	})
-	return metadata.NewOutgoingContext(context.Background(), md)
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
+	defer cancel()
+
+	client := pb.NewQuicServiceClient(conn)
+	return fn(client, ctx)
 }

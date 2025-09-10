@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -17,48 +16,37 @@ var deleteCmd = &cobra.Command{
 	Long:  "Deletes a database branch and cleans up all associated resources",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		branchName := args[0]
+		return executeDelete(args[0], cmd)
+	},
+}
 
-		cfg, err := config.Load()
-		if err != nil {
-			return fmt.Errorf("loading config: %w", err)
-		}
+func executeDelete(branchName string, cmd *cobra.Command) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
 
-		// Get restore name from flag or config
-		restoreName, _ := cmd.Flags().GetString("restore")
-		if restoreName == "" {
-			restoreName = cfg.DefaultTemplate
-		}
+	templateName, _ := cmd.Flags().GetString("template")
+	templateName, err = getRestoreName(cfg, templateName)
+	if err != nil {
+		return err
+	}
 
-		if restoreName == "" {
-			return fmt.Errorf("restore template not specified. Use --restore flag or set selectedRestore in config")
-		}
-
-		client, _, cleanup, err := getQuicClient()
-		if err != nil {
-			return err
-		}
-		defer cleanup()
-
-		authCtx := getAuthContext(cfg)
-		ctx, cancel := context.WithTimeout(authCtx, 30*time.Second)
-		defer cancel()
-
+	return executeWithClient(func(client pb.QuicServiceClient, ctx context.Context) error {
 		req := &pb.DeleteCheckoutRequest{
 			CloneName:   branchName,
-			RestoreName: restoreName,
+			RestoreName: templateName,
 		}
 
-		_, err = client.DeleteCheckout(ctx, req)
+		_, err := client.DeleteCheckout(ctx, req)
 		if err != nil {
 			return fmt.Errorf("deleting checkout: %w", err)
 		}
 
-		// Silent success - no output on successful delete
 		return nil
-	},
+	})
 }
 
 func init() {
-	deleteCmd.Flags().String("restore", "", "Name of the restore template containing the checkout to delete")
+	deleteCmd.Flags().String("template", "", "Name of the template template containing the checkout to delete")
 }

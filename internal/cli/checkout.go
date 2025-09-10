@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -14,40 +13,33 @@ import (
 
 var checkoutCmd = &cobra.Command{
 	Use:   "checkout <branch-name>",
-	Short: "Create a new database branch",
-	Long:  "Creates a new database branch using ZFS snapshots and returns the connection string",
+	Short: "Create a branch",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		branchName := args[0]
+		return executeCheckout(args[0], cmd)
+	},
+}
 
-		cfg, err := config.Load()
-		if err != nil {
-			return fmt.Errorf("loading config: %w", err)
-		}
+func executeCheckout(branchName string, cmd *cobra.Command) error {
+	// TODO:
+	// - validate --template against project config @internal/config/project_config.go
+	// - get Template.Database to replace in the returned connection string
 
-		// Get restore name from flag or config
-		restoreName, _ := cmd.Flags().GetString("restore")
-		if restoreName == "" {
-			restoreName = cfg.DefaultTemplate
-		}
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
 
-		if restoreName == "" {
-			return fmt.Errorf("restore template not specified. Use --restore flag or set selectedRestore in config")
-		}
+	templateName, _ := cmd.Flags().GetString("template")
+	templateName, err = getTemplateName(cfg, templateName)
+	if err != nil {
+		return err
+	}
 
-		client, serverHostname, cleanup, err := getQuicClient()
-		if err != nil {
-			return err
-		}
-		defer cleanup()
-
-		authCtx := getAuthContext(cfg)
-		ctx, cancel := context.WithTimeout(authCtx, 60*time.Second)
-		defer cancel()
-
+	return executeWithClient(func(client pb.QuicServiceClient, ctx context.Context) error {
 		req := &pb.CreateCheckoutRequest{
 			CloneName:   branchName,
-			RestoreName: restoreName,
+			RestoreName: templateName,
 		}
 
 		resp, err := client.CreateCheckout(ctx, req)
@@ -55,17 +47,23 @@ var checkoutCmd = &cobra.Command{
 			return fmt.Errorf("creating checkout: %w", err)
 		}
 
-		// Replace localhost with actual server hostname
-		connectionString := strings.Replace(resp.ConnectionString, "@localhost:", fmt.Sprintf("@%s:", serverHostname), 1)
-		// Replace database
-		// TODO: configurable database selection
-		connectionString = strings.Replace(connectionString, "/postgres", "/dexoryview_production", 1)
-
+		connectionString := formatConnectionString(resp.ConnectionString, cfg.SelectedHost)
 		fmt.Println(connectionString)
 		return nil
-	},
+	})
+}
+
+func formatConnectionString(original, hostname string) string {
+	// Replace hostname
+	result := strings.Replace(original, "@localhost:", fmt.Sprintf("@%s:", hostname), 1)
+
+	// TODO: Get database name from project config template instead of hardcoding
+	// For now, using hardcoded replacement as in original implementation
+	result = strings.Replace(result, "/postgres", "/dexoryview_production", 1)
+
+	return result
 }
 
 func init() {
-	checkoutCmd.Flags().String("restore", "", "Name of the restore template to use for checkout")
+	checkoutCmd.Flags().String("template", "", "Name of the template template to use for checkout")
 }
