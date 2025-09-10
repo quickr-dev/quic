@@ -18,7 +18,7 @@ var loginCmd = &cobra.Command{
 			return fmt.Errorf("token is required. Use --token flag")
 		}
 
-		cfg, err := config.Load()
+		cfg, err := config.LoadUserConfig()
 		if err != nil {
 			return fmt.Errorf("loading config: %w", err)
 		}

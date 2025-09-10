@@ -21,22 +21,21 @@ var checkoutCmd = &cobra.Command{
 }
 
 func executeCheckout(branchName string, cmd *cobra.Command) error {
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
-	}
-
-	templateName, _ := cmd.Flags().GetString("template")
-	templateName, err = cfg.GetTemplateName(templateName)
-	// TODO: validate templateName against hosts in ProjectConfig @internal/config/project_config.go
+	templateFlag, _ := cmd.Flags().GetString("template")
+	template, err := GetTemplate(templateFlag)
 	if err != nil {
 		return err
+	}
+
+	userCfg, err := config.LoadUserConfig()
+	if err != nil {
+		return fmt.Errorf("loading user config: %w", err)
 	}
 
 	return executeWithClient(func(client pb.QuicServiceClient, ctx context.Context) error {
 		req := &pb.CreateCheckoutRequest{
 			CloneName:   branchName,
-			RestoreName: templateName,
+			RestoreName: template.Name,
 		}
 
 		resp, err := client.CreateCheckout(ctx, req)
@@ -44,19 +43,18 @@ func executeCheckout(branchName string, cmd *cobra.Command) error {
 			return fmt.Errorf("creating checkout: %w", err)
 		}
 
-		// TODO: get `Template.Database` from ProjectConfig based on templateName
-		connectionString := formatConnectionString(resp.ConnectionString, cfg.SelectedHost)
+		connectionString := formatConnectionString(resp.ConnectionString, userCfg.SelectedHost, template.Database)
 		fmt.Println(connectionString)
 		return nil
 	})
 }
 
-func formatConnectionString(original, hostname string) string {
+func formatConnectionString(original, hostname, database string) string {
 	// Replace hostname
 	result := strings.Replace(original, "@localhost:", fmt.Sprintf("@%s:", hostname), 1)
 
 	// Replace database
-	result = strings.Replace(result, "/postgres", "/dexoryview_production", 1)
+	result = strings.Replace(result, "/postgres", "/"+database, 1)
 
 	return result
 }

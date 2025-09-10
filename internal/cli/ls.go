@@ -20,7 +20,7 @@ var lsCmd = &cobra.Command{
 }
 
 func executeList(cmd *cobra.Command) error {
-	cfg, err := config.Load()
+	cfg, err := config.LoadUserConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}

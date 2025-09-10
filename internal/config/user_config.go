@@ -49,7 +49,7 @@ func getConfigPath() (string, error) {
 	return filepath.Join(configDir, configFileName), nil
 }
 
-func Load() (*UserConfig, error) {
+func LoadUserConfig() (*UserConfig, error) {
 	configPath, err := getConfigPath()
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func (c *UserConfig) Save() error {
 
 func createDefaultConfig() (*UserConfig, error) {
 	// Load project config to get available hosts
-	projectConfig, err := LoadQuicConfig()
+	projectConfig, err := LoadProjectConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load project config: %w", err)
 	}
@@ -180,24 +180,3 @@ func testServerLatency(server string) (time.Duration, error) {
 	return time.Since(start), nil
 }
 
-func (c *UserConfig) GetTemplateName(flagValue string) (string, error) {
-	templateName := flagValue
-	if templateName == "" {
-		templateName = c.DefaultTemplate
-	}
-	if templateName == "" {
-		return "", fmt.Errorf("template not specified. Use --template flag or set defaultTemplate in config")
-	}
-	return templateName, nil
-}
-
-func (c *UserConfig) GetRestoreName(flagValue string) (string, error) {
-	templateName := flagValue
-	if templateName == "" {
-		templateName = c.DefaultTemplate
-	}
-	if templateName == "" {
-		return "", fmt.Errorf("restore template not specified. Use --restore flag or set defaultTemplate in config")
-	}
-	return templateName, nil
-}

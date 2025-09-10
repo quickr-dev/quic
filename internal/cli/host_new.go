@@ -84,7 +84,7 @@ func runHostNew(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	quicConfig, err := config.LoadQuicConfig()
+	quicConfig, err := config.LoadProjectConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load quic config: %w", err)
 	}

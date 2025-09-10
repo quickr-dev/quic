@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/quickr-dev/quic/internal/config"
 	pb "github.com/quickr-dev/quic/proto"
 )
 
@@ -21,13 +20,8 @@ var deleteCmd = &cobra.Command{
 }
 
 func executeDelete(branchName string, cmd *cobra.Command) error {
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
-	}
-
-	templateName, _ := cmd.Flags().GetString("template")
-	templateName, err = cfg.GetRestoreName(templateName)
+	templateFlag, _ := cmd.Flags().GetString("template")
+	template, err := GetTemplate(templateFlag)
 	if err != nil {
 		return err
 	}
@@ -35,7 +29,7 @@ func executeDelete(branchName string, cmd *cobra.Command) error {
 	return executeWithClient(func(client pb.QuicServiceClient, ctx context.Context) error {
 		req := &pb.DeleteCheckoutRequest{
 			CloneName:   branchName,
-			RestoreName: templateName,
+			RestoreName: template.Name,
 		}
 
 		_, err := client.DeleteCheckout(ctx, req)

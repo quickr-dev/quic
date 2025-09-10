@@ -25,7 +25,7 @@ var templateSetupCmd = &cobra.Command{
 
 func runTemplateSetup(cmd *cobra.Command, args []string) error {
 	// Load quic config
-	quicConfig, err := config.LoadQuicConfig()
+	quicConfig, err := config.LoadProjectConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load quic config: %w", err)
 	}

@@ -37,7 +37,7 @@ type TemplateProvider struct {
 	ClusterName string `json:"clusterName"`
 }
 
-func LoadQuicConfig() (*ProjectConfig, error) {
+func LoadProjectConfig() (*ProjectConfig, error) {
 	configPath := getQuicConfigPath()
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {

@@ -27,7 +27,7 @@ func runUserCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load quic config to get hosts
-	quicConfig, err := config.LoadQuicConfig()
+	quicConfig, err := config.LoadProjectConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load quic config: %w", err)
 	}
