@@ -27,7 +27,7 @@ func executeDelete(branchName string, cmd *cobra.Command) error {
 	}
 
 	templateName, _ := cmd.Flags().GetString("template")
-	templateName, err = getRestoreName(cfg, templateName)
+	templateName, err = cfg.GetRestoreName(templateName)
 	if err != nil {
 		return err
 	}

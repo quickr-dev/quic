@@ -179,3 +179,25 @@ func testServerLatency(server string) (time.Duration, error) {
 	conn.Close()
 	return time.Since(start), nil
 }
+
+func (c *UserConfig) GetTemplateName(flagValue string) (string, error) {
+	templateName := flagValue
+	if templateName == "" {
+		templateName = c.DefaultTemplate
+	}
+	if templateName == "" {
+		return "", fmt.Errorf("template not specified. Use --template flag or set defaultTemplate in config")
+	}
+	return templateName, nil
+}
+
+func (c *UserConfig) GetRestoreName(flagValue string) (string, error) {
+	templateName := flagValue
+	if templateName == "" {
+		templateName = c.DefaultTemplate
+	}
+	if templateName == "" {
+		return "", fmt.Errorf("restore template not specified. Use --restore flag or set defaultTemplate in config")
+	}
+	return templateName, nil
+}

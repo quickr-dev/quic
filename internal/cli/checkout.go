@@ -21,17 +21,14 @@ var checkoutCmd = &cobra.Command{
 }
 
 func executeCheckout(branchName string, cmd *cobra.Command) error {
-	// TODO:
-	// - validate --template against project config @internal/config/project_config.go
-	// - get Template.Database to replace in the returned connection string
-
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
 	templateName, _ := cmd.Flags().GetString("template")
-	templateName, err = getTemplateName(cfg, templateName)
+	templateName, err = cfg.GetTemplateName(templateName)
+	// TODO: validate templateName against hosts in ProjectConfig @internal/config/project_config.go
 	if err != nil {
 		return err
 	}
@@ -47,6 +44,7 @@ func executeCheckout(branchName string, cmd *cobra.Command) error {
 			return fmt.Errorf("creating checkout: %w", err)
 		}
 
+		// TODO: get `Template.Database` from ProjectConfig based on templateName
 		connectionString := formatConnectionString(resp.ConnectionString, cfg.SelectedHost)
 		fmt.Println(connectionString)
 		return nil
@@ -57,8 +55,7 @@ func formatConnectionString(original, hostname string) string {
 	// Replace hostname
 	result := strings.Replace(original, "@localhost:", fmt.Sprintf("@%s:", hostname), 1)
 
-	// TODO: Get database name from project config template instead of hardcoding
-	// For now, using hardcoded replacement as in original implementation
+	// Replace database
 	result = strings.Replace(result, "/postgres", "/dexoryview_production", 1)
 
 	return result
