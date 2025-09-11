@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -86,4 +87,127 @@ func runInVM(t *testing.T, vmName string, command ...string) string {
 	require.NoError(t, err, string(output))
 
 	return string(output)
+}
+
+// runInVMExpectError runs a command in VM and returns output even if command fails
+func runInVMExpectError(t *testing.T, vmName string, command string) string {
+	cmd := exec.Command("multipass", "exec", vmName, "--", "bash", "-c", command)
+	output, _ := cmd.CombinedOutput() // Ignore error since we expect it might fail
+	return string(output)
+}
+
+// setupQuicCheckout sets up a complete checkout environment and returns the checkout output and error.
+// This extracts the common setup logic from checkout_test.go lines 14-58.
+func setupQuicCheckout(t *testing.T) (checkoutOutput string, templateName string, branchName string, err error) {
+	// Setup backup
+	_, _, _, err = ensureCrunchyBridgeBackup(t, quicE2eClusterName)
+	if err != nil {
+		return "", "", "", fmt.Errorf("ensureCrunchyBridgeBackup failed: %w", err)
+	}
+
+	// Setup fresh VM
+	vmIP := ensureFreshVM(t, QuicCheckoutVM)
+
+	// Setup host
+	cleanupQuicConfig(t)
+	runQuic(t, "host", "new", vmIP, "--devices", VMDevices)
+	hostSetupOutput := runQuicHostSetupWithAck(t, []string{QuicCheckoutVM})
+	t.Log(hostSetupOutput)
+
+	// Create user and login
+	userOutput, err := runQuic(t, "user", "create", "Test User")
+	if err != nil {
+		return "", "", "", fmt.Errorf("quic user create failed: %w", err)
+	}
+
+	token := extractTokenFromCheckoutOutput(t, userOutput)
+	if token == "" {
+		return "", "", "", fmt.Errorf("token should be extracted from user create output")
+	}
+
+	loginOutput, err := runQuic(t, "login", "--token", token)
+	if err != nil {
+		return "", "", "", fmt.Errorf("quic login failed: %w", err)
+	}
+
+	// Create template
+	templateName = fmt.Sprintf("test-%d", time.Now().UnixNano())
+	templateOutput, err := runQuic(t, "template", "new", templateName,
+		"--pg-version", "16",
+		"--cluster-name", quicE2eClusterName,
+		"--database", "quic_test")
+	if err != nil {
+		return "", "", "", fmt.Errorf("quic template new failed: %w", err)
+	}
+
+	// Setup template with API key from environment
+	apiKey := getRequiredTestEnv("CB_API_KEY")
+	if apiKey == "" {
+		return "", "", "", fmt.Errorf("CB_API_KEY is required")
+	}
+
+	// Set CB_API_KEY environment variable for the command
+	os.Setenv("CB_API_KEY", apiKey)
+	defer os.Unsetenv("CB_API_KEY")
+
+	t.Log("Running quic template setup...")
+	templateSetupOutput, err := runQuic(t, "template", "setup", templateName)
+	if err != nil {
+		return "", "", "", fmt.Errorf("quic template setup failed: %w", err)
+	}
+	t.Log(templateSetupOutput)
+	t.Log("✓ Finished quic template setup")
+
+	// Create branch
+	branchName = fmt.Sprintf("test-branch-%d", time.Now().UnixNano())
+	checkoutOutput, err = retryCheckoutUntilReady(t, branchName, templateName, 30*time.Second)
+	if err != nil {
+		return "", "", "", fmt.Errorf("quic checkout failed: %w", err)
+	}
+
+	return checkoutOutput, templateName, branchName, nil
+}
+
+func extractTokenFromCheckoutOutput(t *testing.T, output string) string {
+	lines := strings.SplitSeq(output, "\n")
+	for line := range lines {
+		if strings.Contains(line, "$ quic login --token") {
+			parts := strings.Fields(line)
+			require.GreaterOrEqual(t, len(parts), 4, "Token line should have at least 4 parts")
+			return parts[len(parts)-1] // Last part should be the token
+		}
+	}
+	t.Fatal("Could not find token line in output")
+	return ""
+}
+
+func retryCheckoutUntilReady(t *testing.T, branchName, templateName string, timeout time.Duration) (string, error) {
+	startTime := time.Now()
+	deadline := startTime.Add(timeout)
+	interval := 1 * time.Second
+	expectedErrorMessage := "template is still in recovery mode and not ready for branching"
+
+	t.Log("Attempting to checkout branch")
+
+	for time.Now().Before(deadline) {
+		checkoutOutput, err := runQuic(t, "checkout", branchName, "--template", templateName)
+
+		if err == nil {
+			elapsed := time.Since(startTime)
+			t.Logf("✓ Branch checkout succeeded after %v", elapsed)
+			return checkoutOutput, nil
+		}
+
+		// Check both error message and command output for expected error
+		if strings.Contains(checkoutOutput, expectedErrorMessage) || strings.Contains(err.Error(), expectedErrorMessage) {
+			elapsed := time.Since(startTime).Round(time.Second)
+			t.Logf("Template not ready yet (%v elapsed)", elapsed)
+		} else {
+			return "", fmt.Errorf("unexpected error during checkout: %s (output: %s)", err.Error(), strings.TrimSpace(checkoutOutput))
+		}
+
+		time.Sleep(interval)
+	}
+
+	return "", fmt.Errorf("checkout failed: template not ready after %v timeout", timeout)
 }

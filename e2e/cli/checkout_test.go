@@ -11,51 +11,7 @@ import (
 )
 
 func TestQuicCheckout(t *testing.T) {
-	_, _, _, err := ensureCrunchyBridgeBackup(t, quicE2eClusterName)
-	require.NoError(t, err, "ensureCrunchyBridgeBackup should succeed")
-	vmIP := ensureFreshVM(t, QuicCheckoutVM)
-
-	// Setup host
-	cleanupQuicConfig(t)
-	runQuic(t, "host", "new", vmIP, "--devices", VMDevices)
-	hostSetupOutput := runQuicHostSetupWithAck(t, []string{QuicCheckoutVM})
-	t.Log(hostSetupOutput)
-
-	// Create user and login
-	userOutput, err := runQuic(t, "user", "create", "Test User")
-	require.NoError(t, err, "quic user create should succeed\nOutput: %s", userOutput)
-
-	token := extractTokenFromCheckoutOutput(t, userOutput)
-	require.NotEmpty(t, token, "Token should be extracted from user create output")
-
-	loginOutput, err := runQuic(t, "login", "--token", token)
-	require.NoError(t, err, "quic login should succeed\nOutput: %s", loginOutput)
-
-	// Create template
-	templateName := fmt.Sprintf("test-%d", time.Now().UnixNano())
-	templateOutput, err := runQuic(t, "template", "new", templateName,
-		"--pg-version", "16",
-		"--cluster-name", quicE2eClusterName,
-		"--database", "quic_test")
-	require.NoError(t, err, "quic template new should succeed\nOutput: %s", templateOutput)
-
-	// Setup template with API key from environment
-	apiKey := getRequiredTestEnv("CB_API_KEY")
-	require.NotEmpty(t, apiKey, "CB_API_KEY is required")
-
-	// Set CB_API_KEY environment variable for the command
-	os.Setenv("CB_API_KEY", apiKey)
-	defer os.Unsetenv("CB_API_KEY")
-
-	t.Log("Running quic template setup...")
-	templateSetupOutput, err := runQuic(t, "template", "setup", templateName)
-	require.NoError(t, err, "quic template setup should succeed\nOutput: %s", templateSetupOutput)
-	t.Log(templateSetupOutput)
-	t.Log("✓ Finished quic template setup")
-
-	// Create branch
-	branchName := fmt.Sprintf("test-branch-%d", time.Now().UnixNano())
-	checkoutOutput, err := retryCheckoutUntilReady(t, branchName, templateName, 30*time.Second)
+	checkoutOutput, templateName, branchName, err := setupQuicCheckout(t)
 	require.NoError(t, err, "quic checkout should succeed\nOutput: %s", checkoutOutput)
 
 	// Verify connection string is returned
@@ -171,46 +127,3 @@ func TestQuicCheckout(t *testing.T) {
 	})
 }
 
-func extractTokenFromCheckoutOutput(t *testing.T, output string) string {
-	lines := strings.SplitSeq(output, "\n")
-	for line := range lines {
-		if strings.Contains(line, "$ quic login --token") {
-			parts := strings.Fields(line)
-			require.GreaterOrEqual(t, len(parts), 4, "Token line should have at least 4 parts")
-			return parts[len(parts)-1] // Last part should be the token
-		}
-	}
-	t.Fatal("Could not find token line in output")
-	return ""
-}
-
-func retryCheckoutUntilReady(t *testing.T, branchName, templateName string, timeout time.Duration) (string, error) {
-	startTime := time.Now()
-	deadline := startTime.Add(timeout)
-	interval := 1 * time.Second
-	expectedErrorMessage := "template is still in recovery mode and not ready for branching"
-
-	t.Log("Attempting to checkout branch")
-
-	for time.Now().Before(deadline) {
-		checkoutOutput, err := runQuic(t, "checkout", branchName, "--template", templateName)
-
-		if err == nil {
-			elapsed := time.Since(startTime)
-			t.Logf("✓ Branch checkout succeeded after %v", elapsed)
-			return checkoutOutput, nil
-		}
-
-		// Check both error message and command output for expected error
-		if strings.Contains(checkoutOutput, expectedErrorMessage) || strings.Contains(err.Error(), expectedErrorMessage) {
-			elapsed := time.Since(startTime).Round(time.Second)
-			t.Logf("Template not ready yet (%v elapsed)", elapsed)
-		} else {
-			return "", fmt.Errorf("unexpected error during checkout: %s (output: %s)", err.Error(), strings.TrimSpace(checkoutOutput))
-		}
-
-		time.Sleep(interval)
-	}
-
-	return "", fmt.Errorf("checkout failed: template not ready after %v timeout", timeout)
-}
