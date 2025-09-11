@@ -19,8 +19,8 @@ func runQuic(t *testing.T, args ...string) (string, error) {
 	return string(output), err
 }
 
-// quic host setup downloads quicd from Github releases,
-// so we replace it with our local code for testing.
+// `quic host setup` downloads quicd from Github releases when running internal/cli/assets/base-setup.yml.
+// To test local quicd code, we build and replace it in the VM.
 func runQuicHostSetupWithAck(t *testing.T, vmNames []string, args ...string) string {
 	cmdArgs := append([]string{"host", "setup"}, args...)
 	cmd := fmt.Sprintf("echo 'ack' | time ../../bin/quic %s", strings.Join(cmdArgs, " "))
