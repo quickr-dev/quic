@@ -2,6 +2,10 @@ package agent
 
 import "os/exec"
 
+const (
+	ZPool = "tank"
+)
+
 func restoreDataset(restoreName string) string {
 	return ZPool + "/" + restoreName
 }

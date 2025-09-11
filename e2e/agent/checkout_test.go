@@ -273,7 +273,7 @@ func TestCheckoutFlow(t *testing.T) {
 		cloneName := generateCloneName()
 
 		// Get initial audit log size (if exists)
-		infoBefore, err := os.Stat(agent.LogFile)
+		infoBefore, err := os.Stat(agent.AuditFile)
 		require.NoError(t, err, "Audit log file should exist")
 
 		// Create checkout
@@ -281,12 +281,12 @@ func TestCheckoutFlow(t *testing.T) {
 		require.NoError(t, err, "CreateCheckout should succeed")
 
 		// Verify audit log was updated
-		infoAfter, err := os.Stat(agent.LogFile)
+		infoAfter, err := os.Stat(agent.AuditFile)
 		require.NoError(t, err, "Audit log file should exist")
 		require.Greater(t, infoAfter.Size(), infoBefore.Size(), "Audit log should have grown")
 
 		// Read the last line of the audit log
-		cmd := exec.Command("tail", "-n", "1", agent.LogFile)
+		cmd := exec.Command("tail", "-n", "1", agent.AuditFile)
 		output, err := cmd.Output()
 		require.NoError(t, err, "Should be able to read last line of audit log")
 		lastLine := strings.TrimSpace(string(output))

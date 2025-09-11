@@ -8,7 +8,10 @@ import (
 	"time"
 )
 
-// Audit logging
+const (
+	AuditFile = "/var/log/quic/audit.log"
+)
+
 func auditEvent(eventType string, details interface{}) error {
 	logEntry := map[string]interface{}{
 		"timestamp":  time.Now().UTC().Format(time.RFC3339),
@@ -21,8 +24,7 @@ func auditEvent(eventType string, details interface{}) error {
 		return fmt.Errorf("marshaling audit log entry: %w", err)
 	}
 
-	// Append to JSON log file following FHS standards
-	file, err := os.OpenFile(LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(AuditFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("Warning: failed to open audit log file: %v", err)
 		return nil
@@ -44,7 +46,6 @@ func ParseAuditEntry(line string) (map[string]interface{}, error) {
 	return entry, nil
 }
 
-// Helper functions for JSON parsing
 func getString(m map[string]interface{}, key string) string {
 	if v, ok := m[key]; ok {
 		if s, ok := v.(string); ok {

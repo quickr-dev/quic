@@ -115,7 +115,7 @@ func TestDeleteFlow(t *testing.T) {
 		require.True(t, deleted, "DeleteCheckout should return true when checkout was deleted")
 
 		// Read the last line of the audit log and verify it's a delete entry
-		cmd := exec.Command("tail", "-n", "1", agent.LogFile)
+		cmd := exec.Command("tail", "-n", "1", agent.AuditFile)
 		output, err := cmd.Output()
 		require.NoError(t, err, "Should be able to read last line of audit log")
 

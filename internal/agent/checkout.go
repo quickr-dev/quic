@@ -410,7 +410,7 @@ func waitForPostgresReady(port int, timeout time.Duration) error {
 	for time.Now().Before(deadline) {
 		cmd := exec.Command(pgIsReadyPath(PgVersion), "-h", "localhost", "-p", fmt.Sprintf("%d", port))
 		if err := cmd.Run(); err == nil {
-			return nil // PostgreSQL is ready to accept connections
+			return nil
 		}
 
 		time.Sleep(500 * time.Millisecond)
