@@ -201,25 +201,29 @@ func (s *AgentService) coordinatePostgreSQLBackup(restoreDataset, snapshotName s
 func prepareCloneForStartup(clonePath string) error {
 	// Remove standby.signal file
 	standbySignalPath := filepath.Join(clonePath, "standby.signal")
-	if err := os.Remove(standbySignalPath); err != nil && !os.IsNotExist(err) {
+	cmd := exec.Command("sudo", "rm", "-f", standbySignalPath)
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("removing standby.signal: %w", err)
 	}
 
 	// Remove recovery.signal file
 	recoverySignalPath := filepath.Join(clonePath, "recovery.signal")
-	if err := os.Remove(recoverySignalPath); err != nil && !os.IsNotExist(err) {
+	cmd = exec.Command("sudo", "rm", "-f", recoverySignalPath)
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("removing recovery.signal: %w", err)
 	}
 
 	// Remove recovery.conf if it exists
 	recoveryConfPath := filepath.Join(clonePath, "recovery.conf")
-	if err := os.Remove(recoveryConfPath); err != nil && !os.IsNotExist(err) {
+	cmd = exec.Command("sudo", "rm", "-f", recoveryConfPath)
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("removing recovery.conf: %w", err)
 	}
 
 	// Remove postmaster.pid file to prevent startup conflicts
 	postmasterPidPath := filepath.Join(clonePath, "postmaster.pid")
-	if err := os.Remove(postmasterPidPath); err != nil && !os.IsNotExist(err) {
+	cmd = exec.Command("sudo", "rm", "-f", postmasterPidPath)
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("removing postmaster.pid: %w", err)
 	}
 
@@ -235,7 +239,9 @@ func prepareCloneForStartup(clonePath string) error {
 archive_mode = 'off'
 restore_command = ''
 `
-	if err := os.WriteFile(autoConfPath, []byte(autoConfig), 0640); err != nil {
+	cmd = exec.Command("sudo", "tee", autoConfPath)
+	cmd.Stdin = strings.NewReader(autoConfig)
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("writing postgresql.auto.conf: %w", err)
 	}
 
@@ -254,7 +260,9 @@ host    all             all             127.0.0.1/32            md5
 host    all             all             ::1/128                 md5
 host    all             admin           0.0.0.0/0               md5
 `
-	if err := os.WriteFile(pgHbaPath, []byte(hbaConfig), 0640); err != nil {
+	cmd = exec.Command("sudo", "tee", pgHbaPath)
+	cmd.Stdin = strings.NewReader(hbaConfig)
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("writing pg_hba.conf: %w", err)
 	}
 
@@ -320,8 +328,10 @@ func updatePostgreSQLConf(confPath string) error {
 		config = strings.Join(lines, "\n")
 	}
 
-	// Write updated config
-	if err := os.WriteFile(confPath, []byte(config), 0640); err != nil {
+	// Write updated config using sudo
+	cmd := exec.Command("sudo", "tee", confPath)
+	cmd.Stdin = strings.NewReader(config)
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("writing postgresql.conf: %w", err)
 	}
 
@@ -346,8 +356,10 @@ func saveCheckoutMetadata(checkout *CheckoutInfo) error {
 		return fmt.Errorf("marshaling metadata: %w", err)
 	}
 
-	// Write metadata file (directory is owned by postgres)
-	if err := os.WriteFile(metadataPath, data, 0640); err != nil {
+	// Write metadata file using sudo (directory is owned by postgres)
+	cmd := exec.Command("sudo", "tee", metadataPath)
+	cmd.Stdin = strings.NewReader(string(data))
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("writing metadata file: %w", err)
 	}
 
