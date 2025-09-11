@@ -151,41 +151,74 @@
 
     - name: Set up encrypted tank pool if needed
       block:
+        - name: Check ZFS module is loaded and healthy
+          shell: |
+            lsmod | grep -q zfs || modprobe zfs
+            zpool list >/dev/null 2>&1 || (systemctl restart zfs-import-cache && sleep 2)
+          register: zfs_health
+          failed_when: false
+          changed_when: false
+
         - name: Build ZFS device list
           set_fact:
             zfs_device_list: "{{ zfs_devices.split(',') | join(' ') }}"
 
         - name: Create encrypted tank pool
-          command: timeout 10 zpool create tank {{ zfs_device_list }} -O encryption=aes-256-gcm -O keylocation=file:///etc/quic/zfs-key -O keyformat=raw
+          command: zpool create tank {{ zfs_device_list }} -O encryption=aes-256-gcm -O keylocation=file:///etc/quic/zfs-key -O keyformat=raw
+          async: 20
+          poll: 2
+          retries: 1
           register: zpool_result
           failed_when: zpool_result.rc != 0
 
-        - name: Configure tank pool properties
-          command: timeout 5 zfs set {{ item }} tank
-          loop:
-            - recordsize=8K
-            - compression=lz4
-            - atime=off
-            - logbias=throughput
-          register: zfs_config_result
-          failed_when: zfs_config_result.rc != 0
-          retries: 3
-          delay: 1
+        - name: Set ZFS recordsize property
+          command: zfs set recordsize=8K tank
+          async: 10
+          poll: 2
+          retries: 1
+          register: zfs_recordsize
+          failed_when: zfs_recordsize.rc != 0
+
+        - name: Set ZFS compression property
+          command: zfs set compression=lz4 tank
+          async: 10
+          poll: 2
+          retries: 1
+          register: zfs_compression
+          failed_when: zfs_compression.rc != 0
+
+        - name: Set ZFS atime property
+          command: zfs set atime=off tank
+          async: 10
+          poll: 2
+          retries: 1
+          register: zfs_atime
+          failed_when: zfs_atime.rc != 0
+
+        - name: Set ZFS logbias property
+          command: zfs set logbias=throughput tank
+          async: 10
+          poll: 2
+          retries: 1
+          register: zfs_logbias
+          failed_when: zfs_logbias.rc != 0
 
         - name: Verify ZFS pool was created successfully
-          command: timeout 5 zpool status tank
+          command: zpool status tank
           register: verify_result
           failed_when: verify_result.rc != 0
           changed_when: false
 
         - name: Verify tank pool is accessible
-          command: timeout 5 zfs list tank
+          command: zfs list tank
+          async: 10
+          poll: 2
           register: zfs_verify
           failed_when: zfs_verify.rc != 0
           changed_when: false
 
         - name: Set postgres ownership on tank pool
-          command: timeout 5 chown postgres:postgres /tank
+          command: chown postgres:postgres /tank
 
         - name: Create data directory in tank
           file:
