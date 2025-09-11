@@ -78,7 +78,7 @@
       copy:
         content: |
           quic ALL=(root) NOPASSWD: /sbin/zfs, /sbin/zpool, /usr/sbin/ufw, /usr/bin/pgrep
-          quic ALL=(root) NOPASSWD: /bin/systemctl, /usr/bin/pgbackrest
+          quic ALL=(root) NOPASSWD: /bin/systemctl, /usr/bin/pgbackrest, /usr/bin/journalctl
           quic ALL=(root) NOPASSWD: /usr/bin/tee /opt/quic/*
           quic ALL=(root) NOPASSWD: /usr/bin/tee /etc/systemd/system/quic-*.service
           quic ALL=(root) NOPASSWD: /usr/bin/tee /etc/pgbackrest.conf
