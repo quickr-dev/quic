@@ -16,7 +16,7 @@ import (
 	pb "github.com/quickr-dev/quic/proto"
 )
 
-const DefaultTimeout = 10 * time.Second
+const DefaultTimeout = 60 * time.Second
 
 func validateConfig(cfg *config.UserConfig) error {
 	var errors []string
@@ -54,26 +54,29 @@ func executeWithClient(fn func(pb.QuicServiceClient, context.Context) error) err
 		return err
 	}
 
+	return executeWithClientOnHost(cfg.SelectedHost, cfg.AuthToken, DefaultTimeout, fn)
+}
+
+func executeWithClientOnHost(host, authToken string, timeout time.Duration, fn func(pb.QuicServiceClient, context.Context) error) error {
 	tlsConfig := &tls.Config{
 		// base-setup.yml creates self-signed certs so we skip verification
 		InsecureSkipVerify: true,
 	}
 
 	conn, err := grpc.Dial(
-		cfg.SelectedHost+":8443",
+		host+":8443",
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-		grpc.WithTimeout(DefaultTimeout),
 	)
 	if err != nil {
-		return fmt.Errorf("connecting to server %s: %w", cfg.SelectedHost, err)
+		return fmt.Errorf("connecting to server %s: %w", host, err)
 	}
 	defer conn.Close()
 
 	md := metadata.New(map[string]string{
-		"authorization": "Bearer " + cfg.AuthToken,
+		"authorization": "Bearer " + authToken,
 	})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
-	ctx, cancel := context.WithTimeout(ctx, DefaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	client := pb.NewQuicServiceClient(conn)

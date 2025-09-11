@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"os"
@@ -12,8 +11,6 @@ import (
 	"github.com/quickr-dev/quic/internal/providers"
 	pb "github.com/quickr-dev/quic/proto"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 var templateSetupCmd = &cobra.Command{
@@ -125,16 +122,11 @@ func setupTemplate(template config.Template, client *providers.CrunchyBridgeClie
 }
 
 func setupTemplateOnHost(template config.Template, backupToken *providers.BackupToken, pgbackrestConfig string, host config.QuicHost) error {
-	config := &tls.Config{
-		InsecureSkipVerify: true,
-	}
-	conn, err := grpc.Dial(fmt.Sprintf("%s:8443", host.IP), grpc.WithTransportCredentials(credentials.NewTLS(config)))
+	// Load user config for authentication
+	userCfg, err := config.LoadUserConfig()
 	if err != nil {
-		return fmt.Errorf("failed to connect to agent: %w", err)
+		return fmt.Errorf("loading user config: %w", err)
 	}
-	defer conn.Close()
-
-	client := pb.NewQuicServiceClient(conn)
 
 	// Convert backup token to protobuf
 	pbBackupToken := convertBackupTokenToPB(backupToken)
@@ -148,42 +140,40 @@ func setupTemplateOnHost(template config.Template, backupToken *providers.Backup
 		PgbackrestConfig: pgbackrestConfig,
 	}
 
-	// Start restore with streaming
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
-
-	stream, err := client.RestoreTemplate(ctx, req)
-	if err != nil {
-		return fmt.Errorf("failed to start restore: %w", err)
-	}
-
-	// Process streaming responses
-	for {
-		resp, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
+	return executeWithClientOnHost(host.IP, userCfg.AuthToken, 120*time.Minute, func(client pb.QuicServiceClient, ctx context.Context) error {
+		stream, err := client.RestoreTemplate(ctx, req)
 		if err != nil {
-			return fmt.Errorf("restore stream error: %w", err)
+			return fmt.Errorf("failed to start restore: %w", err)
 		}
 
-		switch msg := resp.Message.(type) {
-		case *pb.RestoreTemplateResponse_Log:
-			// Print pgbackrest logs in real-time
-			fmt.Printf("  %s\n", msg.Log.Line)
+		// Process streaming responses
+		for {
+			resp, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return fmt.Errorf("restore stream error: %w", err)
+			}
 
-		case *pb.RestoreTemplateResponse_Result:
-			fmt.Printf("✓ Restore completed successfully!\n")
-			fmt.Printf("  Connection: %s\n", msg.Result.ConnectionString)
-			fmt.Printf("  Service: %s\n", msg.Result.ServiceName)
-			fmt.Printf("  Port: %d\n", msg.Result.Port)
+			switch msg := resp.Message.(type) {
+			case *pb.RestoreTemplateResponse_Log:
+				// Print pgbackrest logs in real-time
+				fmt.Printf("  %s\n", msg.Log.Line)
 
-		case *pb.RestoreTemplateResponse_Error:
-			return fmt.Errorf("restore failed at step '%s': %s", msg.Error.Step, msg.Error.ErrorMessage)
+			case *pb.RestoreTemplateResponse_Result:
+				fmt.Printf("✓ Restore completed successfully!\n")
+				fmt.Printf("  Connection: %s\n", msg.Result.ConnectionString)
+				fmt.Printf("  Service: %s\n", msg.Result.ServiceName)
+				fmt.Printf("  Port: %d\n", msg.Result.Port)
+
+			case *pb.RestoreTemplateResponse_Error:
+				return fmt.Errorf("restore failed at step '%s': %s", msg.Error.Step, msg.Error.ErrorMessage)
+			}
 		}
-	}
 
-	return nil
+		return nil
+	})
 }
 
 func convertBackupTokenToPB(token *providers.BackupToken) *pb.BackupToken {
