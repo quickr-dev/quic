@@ -367,21 +367,14 @@ func saveCheckoutMetadata(checkout *CheckoutInfo) error {
 	return nil
 }
 
-
-
-
 func (s *AgentService) setupAdminUser(checkout *CheckoutInfo) error {
-	// Connect to the database and set up admin user using Unix socket (more reliable for postgres user)
 	sqlCommands := fmt.Sprintf(`
-		-- Create admin role if it doesn't exist
 		DO $$ BEGIN
-			CREATE ROLE admin WITH LOGIN SUPERUSER PASSWORD '%s';
+			CREATE ROLE admin WITH LOGIN SUPERUSER CREATEDB CREATEROLE REPLICATION BYPASSRLS PASSWORD '%s';
 		EXCEPTION
 			WHEN duplicate_object THEN
-				ALTER ROLE admin WITH PASSWORD '%s';
+				ALTER ROLE admin WITH SUPERUSER CREATEDB CREATEROLE REPLICATION BYPASSRLS PASSWORD '%s';
 		END $$;
-		-- Grant all privileges
-		GRANT ALL PRIVILEGES ON DATABASE postgres TO admin;
 	`, checkout.AdminPassword, checkout.AdminPassword)
 
 	_, err := ExecPostgresCommand(checkout.Port, "postgres", sqlCommands)
@@ -546,7 +539,6 @@ func copyFile(src, dst string) error {
 }
 
 func generateSecurePassword() (string, error) {
-	// Use alphanumeric characters only for easy selection and URL safety
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	const length = 32
 

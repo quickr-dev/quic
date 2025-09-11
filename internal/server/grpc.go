@@ -110,5 +110,5 @@ func (s *QuicServer) RestoreTemplate(req *pb.RestoreTemplateRequest, stream pb.Q
 	log.Printf("Restoring template: %s", req.TemplateName)
 
 	// Call the agent service to restore the template
-	return s.agentService.RestoreTemplate(req, stream)
+	return s.agentService.TemplateSetup(req, stream)
 }

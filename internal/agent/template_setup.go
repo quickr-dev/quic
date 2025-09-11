@@ -15,7 +15,7 @@ import (
 	pb "github.com/quickr-dev/quic/proto"
 )
 
-func (s *AgentService) RestoreTemplate(req *pb.RestoreTemplateRequest, stream pb.QuicService_RestoreTemplateServer) error {
+func (s *AgentService) TemplateSetup(req *pb.RestoreTemplateRequest, stream pb.QuicService_RestoreTemplateServer) error {
 	s.sendLog(stream, "INFO", "Starting template restore process...")
 
 	// Create pgbackrest config file
@@ -352,7 +352,6 @@ func findAvailablePortForInit() (int, error) {
 
 	return 0, fmt.Errorf("no available ports in range %d-%d", StartPort, EndPort)
 }
-
 
 func waitForPostgreSQLReady(port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
