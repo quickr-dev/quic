@@ -12,7 +12,7 @@ import (
 
 var templateNewCmd = &cobra.Command{
 	Use:   "new <name>",
-	Short: "Add a new template to quic configuration",
+	Short: "Add a new template to project config file",
 	Args:  cobra.ExactArgs(1),
 	RunE:  runTemplateNew,
 }
@@ -20,8 +20,8 @@ var templateNewCmd = &cobra.Command{
 func init() {
 	templateNewCmd.Flags().String("pg-version", "16", "PostgreSQL version")
 	templateNewCmd.Flags().String("provider", "crunchybridge", "Template provider (currently only crunchybridge)")
-	templateNewCmd.Flags().String("cluster-name", "", "Provider cluster name")
-	templateNewCmd.Flags().String("database", "", "Database name to restore")
+	templateNewCmd.Flags().String("cluster-name", "", "CrunchyBridge's cluster name")
+	templateNewCmd.Flags().String("database", "", "Database name to branch from")
 }
 
 func runTemplateNew(cmd *cobra.Command, args []string) error {
@@ -53,7 +53,7 @@ func runTemplateNew(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		// Select data source provider (only CrunchyBridge for now)
+		// Select data source provider
 		if providerName == "" || providerName == "crunchybridge" {
 			fmt.Println("Select the source:")
 			fmt.Println("  -> CrunchyBridge backup")
@@ -73,7 +73,7 @@ func runTemplateNew(cmd *cobra.Command, args []string) error {
 
 		// Input database name
 		if database == "" {
-			fmt.Print("Input database name to restore: ")
+			fmt.Print("Database name to branch from: ")
 			databaseInput, _ := reader.ReadString('\n')
 			database = strings.TrimSpace(databaseInput)
 

@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -539,17 +540,9 @@ func copyFile(src, dst string) error {
 }
 
 func generateSecurePassword() (string, error) {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	const length = 32
-
-	password := make([]byte, length)
-	for i := range password {
-		randomByte := make([]byte, 1)
-		if _, err := rand.Read(randomByte); err != nil {
-			return "", err
-		}
-		password[i] = charset[int(randomByte[0])%len(charset)]
+	bytes := make([]byte, 24) // 24 bytes = 32 base64 chars
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
 	}
-
-	return string(password), nil
+	return base64.URLEncoding.EncodeToString(bytes), nil
 }

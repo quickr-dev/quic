@@ -12,14 +12,14 @@ import (
 
 var hostNewCmd = &cobra.Command{
 	Use:   "new <ip>",
-	Short: "[ssh] Add a new host to quic configuration",
+	Short: "[admin] Add a new host to the project config file",
 	Args:  cobra.ExactArgs(1),
 	RunE:  runHostNew,
 }
 
 func init() {
-	hostNewCmd.Flags().String("devices", "", "Comma-separated list of full device paths (e.g., /dev/nvme0n1,/path/to/disk)")
-	hostNewCmd.Flags().String("alias", "default", "Alias for the host (default: 'default')")
+	hostNewCmd.Flags().String("devices", "", "Comma-separated list of device paths (e.g., /dev/nvme0n1,/path/to/disk)")
+	hostNewCmd.Flags().String("alias", "default", "Host alias. Makes it easier to specify hosts in other commands (default: 'default')")
 }
 
 func runHostNew(cmd *cobra.Command, args []string) error {

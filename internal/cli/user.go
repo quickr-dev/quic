@@ -6,7 +6,7 @@ import (
 
 var userCmd = &cobra.Command{
 	Use:   "user",
-	Short: "Manage quic users",
+	Short: "Manage users",
 }
 
 func init() {

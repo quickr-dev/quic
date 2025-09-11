@@ -18,7 +18,7 @@ import (
 
 var templateSetupCmd = &cobra.Command{
 	Use:   "setup [template-name]",
-	Short: "Setup templates by restoring from configured sources",
+	Short: "Setup configured templates on hosts",
 	Args:  cobra.MaximumNArgs(1),
 	RunE:  runTemplateSetup,
 }

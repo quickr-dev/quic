@@ -6,7 +6,7 @@ import (
 
 var templateCmd = &cobra.Command{
 	Use:   "template",
-	Short: "Manage quic templates",
+	Short: "Manage templates",
 }
 
 func init() {

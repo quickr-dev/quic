@@ -20,6 +20,10 @@ var checkoutCmd = &cobra.Command{
 	},
 }
 
+func init() {
+	checkoutCmd.Flags().String("template", "", "Template to branch from")
+}
+
 func executeCheckout(branchName string, cmd *cobra.Command) error {
 	templateFlag, _ := cmd.Flags().GetString("template")
 	template, err := GetTemplate(templateFlag)
@@ -57,8 +61,4 @@ func formatConnectionString(original, hostname, database string) string {
 	result = strings.Replace(result, "/postgres", "/"+database, 1)
 
 	return result
-}
-
-func init() {
-	checkoutCmd.Flags().String("template", "", "Name of the template template to use for checkout")
 }

@@ -6,7 +6,7 @@ import (
 
 var hostCmd = &cobra.Command{
 	Use:   "host",
-	Short: "Manage quic hosts",
+	Short: "Manage hosts",
 }
 
 func init() {

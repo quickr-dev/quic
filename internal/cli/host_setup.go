@@ -23,7 +23,7 @@ var ansibleConfig string
 
 var hostSetupCmd = &cobra.Command{
 	Use:   "setup",
-	Short: "[ssh] Setup infrastructure on configured hosts",
+	Short: "[admin] Setup infrastructure on configured hosts",
 	RunE:  runHostSetup,
 }
 

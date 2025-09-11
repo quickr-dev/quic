@@ -14,7 +14,7 @@ import (
 
 var userCreateCmd = &cobra.Command{
 	Use:   "create <name>",
-	Short: "[ssh] Create a new user",
+	Short: "[admin] Create a new user",
 	Args:  cobra.ExactArgs(1),
 	RunE:  runUserCreate,
 }

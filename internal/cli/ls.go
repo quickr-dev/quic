@@ -12,7 +12,7 @@ import (
 
 var lsCmd = &cobra.Command{
 	Use:   "ls",
-	Short: "List all database checkouts",
+	Short: "List branches",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return executeList(cmd)

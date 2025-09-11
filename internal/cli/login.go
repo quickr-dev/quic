@@ -10,8 +10,7 @@ import (
 
 var loginCmd = &cobra.Command{
 	Use:   "login",
-	Short: "Authenticate with Quic",
-	Long:  "Store authentication token for accessing Quic services",
+	Short: "Required to execute (most) commands",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		token, _ := cmd.Flags().GetString("token")
 		if token == "" {

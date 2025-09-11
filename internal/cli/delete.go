@@ -11,12 +11,15 @@ import (
 
 var deleteCmd = &cobra.Command{
 	Use:   "delete <branch-name>",
-	Short: "Delete a database branch",
-	Long:  "Deletes a database branch and cleans up all associated resources",
+	Short: "Delete a branch",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return executeDelete(args[0], cmd)
 	},
+}
+
+func init() {
+	deleteCmd.Flags().String("template", "", "Template to delete the branch from")
 }
 
 func executeDelete(branchName string, cmd *cobra.Command) error {
@@ -34,13 +37,9 @@ func executeDelete(branchName string, cmd *cobra.Command) error {
 
 		_, err := client.DeleteCheckout(ctx, req)
 		if err != nil {
-			return fmt.Errorf("deleting checkout: %w", err)
+			return fmt.Errorf("deleting branch: %w", err)
 		}
 
 		return nil
 	})
-}
-
-func init() {
-	deleteCmd.Flags().String("template", "", "Name of the template template containing the checkout to delete")
 }
