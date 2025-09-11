@@ -39,7 +39,6 @@ func TestQuicCheckout(t *testing.T) {
 	t.Log("Running quic template setup...")
 	templateSetupOutput, err := runQuic(t, "template", "setup", templateName)
 	require.NoError(t, err, "quic template setup should succeed\nOutput: %s", templateSetupOutput)
-	t.Log(templateSetupOutput)
 	t.Log("✓ Finished quic template setup")
 
 	// Create user and login
@@ -148,11 +147,11 @@ func TestQuicCheckout(t *testing.T) {
 		runInVM(t, QuicCheckoutVM, "sudo -u postgres pg_isready -p", portPart)
 
 		// Test recovery status (should not be in recovery mode)
-		recoveryOutput := runInVM(t, QuicCheckoutVM, fmt.Sprintf("sudo -u postgres psql -p %s -d postgres -c \"SELECT pg_is_in_recovery();\"", portPart))
+		recoveryOutput := runInVM(t, QuicCheckoutVM, fmt.Sprintf("sudo -u postgres psql --no-align --tuples-only -p %s -d postgres -c \"SELECT pg_is_in_recovery();\"", portPart))
 		require.Contains(t, recoveryOutput, "f", "PostgreSQL should not be in recovery mode")
 
 		// Test querying test data
-		usersOutput := runInVM(t, QuicCheckoutVM, fmt.Sprintf("sudo -u postgres psql -p %s -d quic_test -c \"SELECT COUNT(*) FROM users;\"", portPart))
+		usersOutput := runInVM(t, QuicCheckoutVM, fmt.Sprintf("sudo -u postgres psql --no-align --tuples-only -p %s -d quic_test -c \"SELECT COUNT(*) FROM users;\"", portPart))
 		require.Contains(t, usersOutput, "5", "Should have 5 users from test setup")
 	})
 

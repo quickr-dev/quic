@@ -160,12 +160,12 @@ func TestCheckoutFlow(t *testing.T) {
 		// Assert users can quickly use the cloned instance
 		recoveryOutput, err := agent.ExecPostgresCommand(checkoutResult.Port, "postgres", "SELECT pg_is_in_recovery();")
 		require.NoError(t, err, "Error checking recovery status")
-		require.Contains(t, recoveryOutput, "f", "PostgreSQL should not be in recovery mode (pg_is_in_recovery should return 'f')")
+		require.Equal(t, recoveryOutput, "f", "PostgreSQL should not be in recovery mode (pg_is_in_recovery should return 'f')")
 
 		// Make a real query to the cloned instance
 		usersOutput, err := agent.ExecPostgresCommand(checkoutResult.Port, "testdb", "SELECT name FROM users ORDER BY name;")
 		require.NoError(t, err, "Should be able to query test data from restored database")
-		require.Equal(t, usersOutput, "  name   \n---------\n Alice\n Bob\n Charlie\n(3 rows)\n\n")
+		require.Equal(t, usersOutput, "Alice\nBob\nCharlie")
 
 		totalTime := time.Since(startTime)
 		require.Less(t, totalTime, 5*time.Second, "Branch should be ready within 5 seconds, took %v", totalTime)
@@ -184,7 +184,7 @@ func TestCheckoutFlow(t *testing.T) {
 		// Test that admin is super user
 		output, err := agent.ExecPostgresCommand(checkoutResult.Port, "postgres", "SELECT rolname, rolsuper FROM pg_roles WHERE rolname = 'admin';")
 		require.NoError(t, err, "Should be able to query admin user privileges")
-		require.Equal(t, output, " rolname | rolsuper \n---------+----------\n admin   | t\n(1 row)\n\n", "Admin should be super user")
+		require.Equal(t, output, "admin|t", "Admin should be super user")
 	})
 
 	t.Run("ConfigureFirewall", func(t *testing.T) {

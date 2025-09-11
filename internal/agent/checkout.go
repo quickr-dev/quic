@@ -191,7 +191,12 @@ func (s *AgentService) coordinatePostgreSQLBackup(restoreDataset, snapshotName s
 		return cmd.Run()
 	}
 
-	// PostgreSQL is running - force checkpoint for consistency then take snapshot
+	// check if server is fully ready
+	if !IsPostgreSQLServerReady(sourcePath) {
+		return fmt.Errorf("template is in backup recovery state and not yet ready for branching. Please try again in a few minutes.")
+	}
+
+	// PostgreSQL is running and ready - force checkpoint for consistency then take snapshot
 	if _, err := ExecPostgresCommand(port, "postgres", "CHECKPOINT;"); err != nil {
 		return fmt.Errorf("forcing checkpoint: %w", err)
 	}
