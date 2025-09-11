@@ -35,8 +35,8 @@ func (s *QuicServer) CreateCheckout(ctx context.Context, req *pb.CreateCheckoutR
 	// Call the agent service to create the checkout
 	checkout, err := s.agentService.CreateBranch(ctx, req.CloneName, req.RestoreName, user)
 	if err != nil {
-		log.Printf("User %s failed to create checkout %s: %v", user, req.CloneName, err)
-		return nil, fmt.Errorf("agent CreateCheckout failed: %w", err)
+		log.Printf("failed to create checkout %v", err)
+		return nil, err
 	}
 
 	log.Printf("User %s successfully created checkout: %s", user, req.CloneName)

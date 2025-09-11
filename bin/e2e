@@ -10,6 +10,7 @@ if [ $# -eq 0 ]; then
 fi
 
 go build -o bin/quic ./cmd/quic
+go build -o bin/quicd ./cmd/quicd
 
 if test -f "$1"; then
     # Run all tests from the specified file by running the package and extracting test names

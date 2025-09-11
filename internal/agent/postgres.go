@@ -2,9 +2,17 @@ package agent
 
 import (
 	"fmt"
+	"log"
 	"os/exec"
 	"strings"
 )
+
+type PostmasterPid struct {
+	PID           string
+	DataDirectory string
+	StartTime     string
+	Port          string
+}
 
 const (
 	PgVersion   = "16"
@@ -46,6 +54,41 @@ func ExecPostgresCommand(port int, database, sqlCommand string) (string, error) 
 }
 
 func IsPostgreSQLServerReady(dataDir string) bool {
-	cmd := exec.Command("sudo", "-u", "postgres", pgIsReadyPath(PgVersion), "-h", PgSocketDir)
-	return cmd.Run() == nil
+	postmasterPid, isRunning := getPostmasterPid(dataDir)
+	if !isRunning {
+		return false
+	}
+
+	// pg_isready output:
+	// - not started: no response - exit status 2
+	// - backup recovery mode: rejecting connections - exit status 1
+	// - database system is ready to accept read-only connections: accepting connections - nil
+	cmd := exec.Command("sudo", "-u", "postgres", pgIsReadyPath(PgVersion), "--port", postmasterPid.Port)
+	output := cmd.Run()
+	log.Println(">>>> pg_isready output: ", output)
+	return output == nil
+}
+
+func getPostmasterPid(dataDir string) (PostmasterPid, bool) {
+	content, err := exec.Command("sudo", "cat", dataDir+"/postmaster.pid").Output()
+	if err != nil {
+		return PostmasterPid{}, false
+	}
+	return parsePostmasterPid(string(content))
+}
+
+func parsePostmasterPid(content string) (PostmasterPid, bool) {
+	lines := strings.Split(strings.TrimSpace(content), "\n")
+
+	if len(lines) < 4 {
+		return PostmasterPid{}, false
+	}
+
+	result := PostmasterPid{}
+	result.PID = strings.TrimSpace(lines[0])
+	result.DataDirectory = strings.TrimSpace(lines[1])
+	result.StartTime = strings.TrimSpace(lines[2])
+	result.Port = strings.TrimSpace(lines[3])
+
+	return result, true
 }

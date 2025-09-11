@@ -14,20 +14,29 @@ import (
 	"time"
 )
 
-func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, templateName string, createdBy string) (*CheckoutInfo, error) {
+func (s *AgentService) CreateBranch(ctx context.Context, branch string, template string, createdBy string) (*CheckoutInfo, error) {
+	templatePath, err := GetTemplateMountpoint(template)
+	if err != nil {
+		return nil, err
+	}
+
+	if !IsPostgreSQLServerReady(templatePath) {
+		return nil, fmt.Errorf("template is still in recovery mode and not ready for branching. This process may take seconds to hours depending on WAL volume. Please retry in a few moments.")
+	}
+
 	if !s.tryLockWithShutdownCheck() {
 		return nil, fmt.Errorf("service restarting, please retry in a few seconds")
 	}
 	defer s.checkoutMutex.Unlock()
 
 	// Validate and normalize clone name
-	validatedName, err := ValidateCloneName(cloneName)
+	validatedName, err := ValidateCloneName(branch)
 	if err != nil {
 		return nil, fmt.Errorf("invalid clone name: %w", err)
 	}
-	cloneName = validatedName
+	branch = validatedName
 
-	existing, err := s.discoverCheckoutFromOS(templateName, cloneName)
+	existing, err := s.discoverCheckoutFromOS(template, branch)
 	if err != nil {
 		return nil, fmt.Errorf("checking existing checkout: %w", err)
 	}
@@ -48,7 +57,7 @@ func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, templ
 	}
 
 	// Create ZFS snapshot and clone
-	clonePath, err := s.createZFSClone(templateName, cloneName)
+	clonePath, err := s.createZFSClone(template, branch)
 	if err != nil {
 		return nil, fmt.Errorf("creating ZFS clone: %w", err)
 	}
@@ -56,8 +65,8 @@ func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, templ
 	// Store metadata alongside the clone
 	now := time.Now().UTC().Truncate(time.Second)
 	checkout := &CheckoutInfo{
-		TemplateName:  templateName,
-		CloneName:     cloneName,
+		TemplateName:  template,
+		CloneName:     branch,
 		Port:          port,
 		ClonePath:     clonePath,
 		AdminPassword: adminPassword,
@@ -77,12 +86,13 @@ func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, templ
 	}
 
 	// Create and start systemd service for this clone
-	if err := CreateCloneService(checkout.TemplateName, checkout.CloneName, checkout.ClonePath, checkout.Port); err != nil {
+	if err := CreateBranchService(checkout.TemplateName, checkout.CloneName, checkout.ClonePath, checkout.Port); err != nil {
 		return nil, fmt.Errorf("creating systemd service: %w", err)
 	}
 
 	// Start the systemd service
-	if err := StartCloneService(checkout.TemplateName, checkout.CloneName, checkout.Port); err != nil {
+	serviceName := GetBranchServiceName(checkout.TemplateName, checkout.CloneName)
+	if err := StartService(serviceName); err != nil {
 		return nil, fmt.Errorf("starting systemd service: %w", err)
 	}
 
@@ -157,18 +167,9 @@ func (s *AgentService) getCloneMountpoint(restoreName, cloneDataset, cloneName s
 		})
 	}
 
-	// Get mount point
-	cmd := GetMountpoint(cloneDataset)
-	output, err := cmd.Output()
+	mountpoint, err := GetMountpoint(cloneDataset)
 	if err != nil {
 		return "", fmt.Errorf("getting ZFS mountpoint: %w", err)
-	}
-
-	mountpoint := strings.TrimSpace(string(output))
-
-	// Validate that we got a real path, not "none" or other invalid values
-	if mountpoint == "none" || mountpoint == "-" || mountpoint == "" {
-		return "", fmt.Errorf("invalid ZFS mountpoint for clone %s: got '%s'", cloneDataset, mountpoint)
 	}
 
 	return mountpoint, nil
@@ -189,11 +190,6 @@ func (s *AgentService) coordinatePostgreSQLBackup(restoreDataset, snapshotName s
 		// PostgreSQL isn't running, just create snapshot directly
 		cmd := exec.Command("sudo", "zfs", "snapshot", snapshotName)
 		return cmd.Run()
-	}
-
-	// check if server is fully ready
-	if !IsPostgreSQLServerReady(sourcePath) {
-		return fmt.Errorf("template is in backup recovery state and not yet ready for branching. Please try again in a few minutes.")
 	}
 
 	// PostgreSQL is running and ready - force checkpoint for consistency then take snapshot
@@ -404,34 +400,17 @@ func isPortAvailableForClone(port int) bool {
 	return true
 }
 
-func waitForPostgresReady(port int, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-
-	for time.Now().Before(deadline) {
-		cmd := exec.Command(pgIsReadyPath(PgVersion), "-h", "localhost", "-p", fmt.Sprintf("%d", port))
-		if err := cmd.Run(); err == nil {
-			return nil
-		}
-
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	return fmt.Errorf("timeout waiting for PostgreSQL to become ready after %v", timeout)
-}
-
 func (s *AgentService) discoverCheckoutFromOS(templateName, cloneName string) (*CheckoutInfo, error) {
 	cloneDataset := branchDataset(templateName, cloneName)
 
 	if !datasetExists(cloneDataset) {
-		return nil, nil // Clone doesn't exist
+		return nil, nil
 	}
 
-	cmd := GetMountpoint(cloneDataset)
-	output, err := cmd.Output()
+	clonePath, err := GetMountpoint(cloneDataset)
 	if err != nil {
 		return nil, fmt.Errorf("getting ZFS mountpoint: %w", err)
 	}
-	clonePath := strings.TrimSpace(string(output))
 
 	var checkout *CheckoutInfo
 
@@ -519,21 +498,6 @@ func extractPortFromPostmasterPid(dataDir string) (int, bool) {
 	}
 
 	return 0, false // Couldn't parse port
-}
-
-func copyFile(src, dst string) error {
-	// Read source file
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return fmt.Errorf("reading source file %s: %w", src, err)
-	}
-
-	// Write to destination
-	if err := os.WriteFile(dst, data, 0644); err != nil {
-		return fmt.Errorf("writing destination file %s: %w", dst, err)
-	}
-
-	return nil
 }
 
 func generateSecurePassword() (string, error) {

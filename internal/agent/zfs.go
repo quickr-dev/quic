@@ -1,6 +1,10 @@
 package agent
 
-import "os/exec"
+import (
+	"fmt"
+	"os/exec"
+	"strings"
+)
 
 const (
 	ZPool = "tank"
@@ -24,6 +28,25 @@ func snapshotExists(snapshot string) bool {
 	return cmd.Run() == nil
 }
 
-func GetMountpoint(dataset string) *exec.Cmd {
-	return exec.Command("sudo", "zfs", "get", "-H", "-o", "value", "mountpoint", dataset)
+func GetMountpoint(dataset string) (string, error) {
+	cmd := exec.Command("sudo", "zfs", "get", "-H", "-o", "value", "mountpoint", dataset)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("getting ZFS mountpoint: %w", err)
+	}
+
+	mountpoint := strings.TrimSpace(string(output))
+	if mountpoint == "none" || mountpoint == "-" || mountpoint == "" {
+		return "", fmt.Errorf("invalid ZFS mountpoint'%s'", mountpoint)
+	}
+
+	return mountpoint, nil
+}
+
+func GetTemplateMountpoint(template string) (string, error) {
+	return GetMountpoint(templateDataset(template))
+}
+
+func GetBranchMountpoint(template string, branch string) (string, error) {
+	return GetMountpoint(branchDataset(template, branch))
 }

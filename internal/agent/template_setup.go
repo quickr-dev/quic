@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -87,7 +86,7 @@ func (s *AgentService) initRestoreWithStreaming(req *pb.RestoreTemplateRequest, 
 	}
 
 	s.sendLog(stream, "INFO", "✓ Restore done")
-	s.sendLog(stream, "INFO", "Setting up the system...")
+	s.sendLog(stream, "INFO", "Setting up template...")
 
 	// Set ownership
 	if err := exec.Command("sudo", "chown", "-R", "postgres:postgres", mountPath).Run(); err != nil {
@@ -95,7 +94,7 @@ func (s *AgentService) initRestoreWithStreaming(req *pb.RestoreTemplateRequest, 
 	}
 
 	// Clean up PostgreSQL configuration
-	if err := s.updatePostgreSQLConfForTemplate(mountPath); err != nil {
+	if err := s.updateTemplatePostgresConf(mountPath); err != nil {
 		return nil, fmt.Errorf("updating PostgreSQL config: %w", err)
 	}
 
@@ -117,16 +116,7 @@ func (s *AgentService) initRestoreWithStreaming(req *pb.RestoreTemplateRequest, 
 		return nil, fmt.Errorf("starting PostgreSQL service: %w", err)
 	}
 
-	s.sendLog(stream, "INFO", "✓ System setup done")
-
-	// Wait for PostgreSQL to be ready with journal log streaming
-	s.sendLog(stream, "INFO", "Waiting for template to be ready...")
-
-	if err := s.waitForPostgreSQLReadyWithJournalLogs(req.TemplateName, 30*time.Second, stream); err != nil {
-		return nil, fmt.Errorf("waiting for PostgreSQL to be ready: %w", err)
-	}
-
-	// Store metadata (reuse existing logic)
+	// Store metadata
 	result := &InitResult{
 		Dirname:     req.TemplateName,
 		Stanza:      req.BackupToken.Stanza,
@@ -137,12 +127,20 @@ func (s *AgentService) initRestoreWithStreaming(req *pb.RestoreTemplateRequest, 
 		CreatedAt:   time.Now().Format(time.RFC3339),
 	}
 
-	// Write metadata file to disk (same as InitRestore)
 	if err := s.writeMetadataFile(result, mountPath); err != nil {
 		return nil, fmt.Errorf("writing metadata file: %w", err)
 	}
 
-	s.sendLog(stream, "INFO", "✓ Template ready for branching")
+	templatePath, err := GetTemplateMountpoint(req.TemplateName)
+	if err != nil {
+		return nil, fmt.Errorf("getting template path: %w", err)
+	}
+
+	if IsPostgreSQLServerReady(templatePath) {
+		s.sendLog(stream, "INFO", "Template setup complete but not yet ready for branching. For now, you should keep trying to `quic checkout` until it succeeds.")
+	} else {
+		s.sendLog(stream, "INFO", "✓ Template ready for branching")
+	}
 
 	return result, nil
 }
@@ -252,7 +250,7 @@ func (s *AgentService) sendError(stream pb.QuicService_RestoreTemplateServer, st
 	})
 }
 
-func (s *AgentService) updatePostgreSQLConfForTemplate(mountPath string) error {
+func (s *AgentService) updateTemplatePostgresConf(mountPath string) error {
 	confPath := fmt.Sprintf("%s/postgresql.conf", mountPath)
 
 	// Read existing config
@@ -297,7 +295,7 @@ func (s *AgentService) updatePostgreSQLConfForTemplate(mountPath string) error {
 		config = strings.Join(lines, "\n")
 	}
 
-	// Comment out include_dir to avoid hugepages and other problematic settings
+	// Comment out include_dir
 	lines := strings.Split(config, "\n")
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -355,109 +353,4 @@ func findAvailablePortForInit() (int, error) {
 	}
 
 	return 0, fmt.Errorf("no available ports in range %d-%d", StartPort, EndPort)
-}
-
-func (s *AgentService) waitForPostgreSQLReadyWithJournalLogs(templateName string, timeout time.Duration, stream pb.QuicService_RestoreTemplateServer) error {
-	startTime := time.Now()
-	deadline := startTime.Add(timeout)
-	var lastCursor string
-	serviceName := GetTemplateServiceName(templateName)
-
-	for time.Now().Before(deadline) {
-		templatePath := fmt.Sprintf("/opt/quic/%s/_restore", templateName)
-
-		if IsPostgreSQLServerReady(templatePath) {
-			elapsed := time.Since(startTime)
-			s.sendLog(stream, "INFO", fmt.Sprintf("✓ PostgreSQL server is ready (took %v)", elapsed))
-			return nil
-		}
-
-		// Stream recent journal logs for this service
-		s.streamRecentJournalLogs(serviceName, &lastCursor, stream)
-
-		time.Sleep(2 * time.Second)
-	}
-
-	return fmt.Errorf("PostgreSQL not ready after %v timeout", timeout)
-}
-
-func (s *AgentService) streamRecentJournalLogs(serviceName string, lastCursor *string, stream pb.QuicService_RestoreTemplateServer) {
-	args := []string{"sudo", "journalctl", "-u", serviceName, "--no-pager", "--output=json"}
-
-	// Use cursor for precise positioning, fallback to service start time
-	if *lastCursor != "" {
-		args = append(args, "--after-cursor="+*lastCursor)
-	} else {
-		// Start from when the service was started/restarted
-		args = append(args, "--since=@"+getServiceStartTime(serviceName))
-	}
-
-	cmd := exec.Command(args[0], args[1:]...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		s.sendLog(stream, "WARN", fmt.Sprintf("Failed to read journal logs (command: %s): %v, output: %s", strings.Join(args, " "), err, string(output)))
-		return
-	}
-
-	// Parse JSON output line by line
-	for line := range strings.Lines(strings.TrimSpace(string(output))) {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		// Parse JSON log entry
-		var logEntry map[string]interface{}
-		if err := json.Unmarshal([]byte(line), &logEntry); err != nil {
-			continue // Skip malformed JSON
-		}
-
-		// Update cursor to this entry's cursor
-		if cursor, ok := logEntry["__CURSOR"].(string); ok {
-			*lastCursor = cursor
-		}
-
-		// Extract and send the message
-		if message, ok := logEntry["MESSAGE"].(string); ok {
-			// Format with timestamp for better readability
-			timestamp := ""
-			if ts, ok := logEntry["__REALTIME_TIMESTAMP"].(string); ok {
-				if microseconds, err := strconv.ParseInt(ts, 10, 64); err == nil {
-					timestamp = time.Unix(microseconds/1000000, (microseconds%1000000)*1000).Format("15:04:05")
-				}
-			}
-
-			if timestamp != "" {
-				s.sendLog(stream, "INFO", fmt.Sprintf("    [%s] %s", timestamp, message))
-			} else {
-				s.sendLog(stream, "INFO", fmt.Sprintf("    %s", message))
-			}
-		}
-	}
-}
-
-// getServiceStartTime returns the Unix timestamp when the service was last started
-func getServiceStartTime(serviceName string) string {
-	cmd := exec.Command("sudo", "systemctl", "show", serviceName, "--property=ExecMainStartTimestamp", "--value")
-	output, err := cmd.Output()
-	if err != nil {
-		// Fallback to 10 seconds ago if we can't get service start time
-		return strconv.FormatInt(time.Now().Add(-10*time.Second).Unix(), 10)
-	}
-
-	// Parse systemd timestamp format: "Tue 2025-09-10 17:09:53 UTC"
-	timestampStr := strings.TrimSpace(string(output))
-	if timestampStr == "" || timestampStr == "n/a" {
-		// Service hasn't started yet, use current time
-		return strconv.FormatInt(time.Now().Unix(), 10)
-	}
-
-	// Parse the timestamp
-	parsedTime, err := time.Parse("Mon 2006-01-02 15:04:05 MST", timestampStr)
-	if err != nil {
-		// Fallback if parsing fails
-		return strconv.FormatInt(time.Now().Add(-10*time.Second).Unix(), 10)
-	}
-
-	return strconv.FormatInt(parsedTime.Unix(), 10)
 }

@@ -21,6 +21,16 @@ func TestQuicCheckout(t *testing.T) {
 	hostSetupOutput := runQuicHostSetupWithAck(t, []string{QuicCheckoutVM})
 	t.Log(hostSetupOutput)
 
+	// Create user and login
+	userOutput, err := runQuic(t, "user", "create", "Test User")
+	require.NoError(t, err, "quic user create should succeed\nOutput: %s", userOutput)
+
+	token := extractTokenFromCheckoutOutput(t, userOutput)
+	require.NotEmpty(t, token, "Token should be extracted from user create output")
+
+	loginOutput, err := runQuic(t, "login", "--token", token)
+	require.NoError(t, err, "quic login should succeed\nOutput: %s", loginOutput)
+
 	// Create template
 	templateName := fmt.Sprintf("test-%d", time.Now().UnixNano())
 	templateOutput, err := runQuic(t, "template", "new", templateName,
@@ -40,24 +50,12 @@ func TestQuicCheckout(t *testing.T) {
 	t.Log("Running quic template setup...")
 	templateSetupOutput, err := runQuic(t, "template", "setup", templateName)
 	require.NoError(t, err, "quic template setup should succeed\nOutput: %s", templateSetupOutput)
+	t.Log(templateSetupOutput)
 	t.Log("✓ Finished quic template setup")
-
-	// Create user and login
-	userOutput, err := runQuic(t, "user", "create", "Test User")
-	require.NoError(t, err, "quic user create should succeed\nOutput: %s", userOutput)
-
-	token := extractTokenFromCheckoutOutput(t, userOutput)
-	require.NotEmpty(t, token, "Token should be extracted from user create output")
-
-	loginOutput, err := runQuic(t, "login", "--token", token)
-	require.NoError(t, err, "quic login should succeed\nOutput: %s", loginOutput)
-
-	// Validate that template has the expected test data before creating branch
-	waitForTemplateData(t, templateName)
 
 	// Create branch
 	branchName := fmt.Sprintf("test-branch-%d", time.Now().UnixNano())
-	checkoutOutput, err := runQuic(t, "checkout", branchName, "--template", templateName)
+	checkoutOutput, err := retryCheckoutUntilReady(t, branchName, templateName, 30*time.Second)
 	require.NoError(t, err, "quic checkout should succeed\nOutput: %s", checkoutOutput)
 
 	// Verify connection string is returned
@@ -186,30 +184,61 @@ func extractTokenFromCheckoutOutput(t *testing.T, output string) string {
 	return ""
 }
 
-func waitForTemplateData(t *testing.T, templateName string) {
-	timeout := 2 * time.Minute
-	interval := 5 * time.Second
+// func waitForTemplateData(t *testing.T, templateName string) {
+// 	timeout := 2 * time.Minute
+// 	interval := 5 * time.Second
+// 	startTime := time.Now()
+
+// 	t.Logf("Waiting for template data to be available (timeout: %v)", timeout)
+
+// 	for time.Since(startTime) < timeout {
+// 		output, err := psqlTemplate(t, templateName, "SELECT COUNT(*) FROM users")
+// 		if err == nil && strings.Contains(output, "5") {
+// 			t.Logf("✓ Template data available after %v", time.Since(startTime))
+// 			time.Sleep(interval)
+// 			return
+// 		}
+
+// 		if err != nil {
+// 			t.Logf("Template data not ready yet (%v elapsed): %v", time.Since(startTime).Round(time.Second), err)
+// 		} else {
+// 			t.Logf("Template data not ready yet (%v elapsed): expected 5 users, got: %s", time.Since(startTime).Round(time.Second), output)
+// 		}
+// 		time.Sleep(interval)
+// 	}
+
+// 	templateUsersOutput, err := psqlTemplate(t, templateName, "SELECT COUNT(*) FROM users")
+// 	require.NoError(t, err, templateUsersOutput)
+// 	require.Contains(t, templateUsersOutput, "5", "Template should have 5 users after %v timeout", timeout)
+// }
+
+func retryCheckoutUntilReady(t *testing.T, branchName, templateName string, timeout time.Duration) (string, error) {
 	startTime := time.Now()
+	deadline := startTime.Add(timeout)
+	interval := 1 * time.Second
+	expectedErrorMessage := "template is still in recovery mode and not ready for branching"
 
-	t.Logf("Waiting for template data to be available (timeout: %v)", timeout)
+	t.Log("Attempting to checkout branch")
 
-	for time.Since(startTime) < timeout {
-		output, err := psqlTemplate(t, templateName, "SELECT COUNT(*) FROM users")
-		if err == nil && strings.Contains(output, "5") {
-			t.Logf("✓ Template data available after %v", time.Since(startTime))
-			time.Sleep(interval)
-			return
+	for time.Now().Before(deadline) {
+		checkoutOutput, err := runQuic(t, "checkout", branchName, "--template", templateName)
+
+		if err == nil {
+			elapsed := time.Since(startTime)
+			t.Logf("✓ Branch checkout succeeded after %v", elapsed)
+			return checkoutOutput, nil
 		}
 
-		if err != nil {
-			t.Logf("Template data not ready yet (%v elapsed): %v", time.Since(startTime).Round(time.Second), err)
+		// Check both error message and command output for expected error
+		if strings.Contains(checkoutOutput, expectedErrorMessage) || strings.Contains(err.Error(), expectedErrorMessage) {
+			elapsed := time.Since(startTime).Round(time.Second)
+			t.Logf("Template not ready yet (%v elapsed)", elapsed)
 		} else {
-			t.Logf("Template data not ready yet (%v elapsed): expected 5 users, got: %s", time.Since(startTime).Round(time.Second), output)
+			return "", fmt.Errorf("unexpected error during checkout: %s (output: %s)", err.Error(), strings.TrimSpace(checkoutOutput))
 		}
+
 		time.Sleep(interval)
 	}
 
-	templateUsersOutput, err := psqlTemplate(t, templateName, "SELECT COUNT(*) FROM users")
-	require.NoError(t, err, templateUsersOutput)
-	require.Contains(t, templateUsersOutput, "5", "Template should have 5 users after %v timeout", timeout)
+	return "", fmt.Errorf("checkout failed: template not ready after %v timeout", timeout)
 }

@@ -60,11 +60,8 @@ func verifyZFSDatasetExists(t *testing.T, datasetName string, shouldExist bool) 
 }
 
 func verifyZFSMountpoint(t *testing.T, datasetName, expectedMountpoint string) {
-	cmd := agent.GetMountpoint(datasetName)
-	output, err := cmd.Output()
+	mountpoint, err := agent.GetMountpoint(datasetName)
 	require.NoError(t, err, "Should be able to get mountpoint for %s", datasetName)
-
-	mountpoint := strings.TrimSpace(string(output))
 	require.Equal(t, expectedMountpoint, mountpoint, "Dataset %s should have expected mountpoint", datasetName)
 }
 
