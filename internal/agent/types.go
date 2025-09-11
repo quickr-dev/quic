@@ -8,6 +8,7 @@ import (
 
 type CheckoutInfo struct {
 	ID            int       `json:"id"`
+	TemplateName  string    `json:"template_name"`
 	CloneName     string    `json:"clone_name"`
 	Port          int       `json:"port"`
 	ClonePath     string    `json:"clone_path"`

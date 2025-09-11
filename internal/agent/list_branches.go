@@ -7,15 +7,11 @@ import (
 	"strings"
 )
 
-// ListBranches discovers and returns information about all existing checkouts
-// If restoreName is provided, only returns checkouts from that specific restore
-func (s *AgentService) ListBranches(ctx context.Context, restoreName string) ([]*CheckoutInfo, error) {
+func (s *AgentService) ListBranches(ctx context.Context, filterByTemplateName string) ([]*CheckoutInfo, error) {
 	var searchDataset string
-	if restoreName != "" {
-		// If specific restore name provided, search only within that restore
-		searchDataset = ZPool + "/" + restoreName
+	if filterByTemplateName != "" {
+		searchDataset = ZPool + "/" + filterByTemplateName
 	} else {
-		// If no restore name provided, search all restores
 		searchDataset = ZPool
 	}
 
@@ -24,7 +20,7 @@ func (s *AgentService) ListBranches(ctx context.Context, restoreName string) ([]
 	output, err := cmd.Output()
 	if err != nil {
 		// If the specific restore doesn't exist, return empty list instead of error
-		if restoreName != "" {
+		if filterByTemplateName != "" {
 			return []*CheckoutInfo{}, nil
 		}
 		return nil, fmt.Errorf("listing ZFS datasets: %w", err)
@@ -51,14 +47,14 @@ func (s *AgentService) ListBranches(ctx context.Context, restoreName string) ([]
 			continue // Invalid format - need at least tank/restore/clone
 		}
 
-		datasetRestoreName := parts[len(parts)-2] // Second to last part is the restore name
-		cloneName := parts[len(parts)-1]          // Last part is the clone name
+		templateName := parts[len(parts)-2]
+		cloneName := parts[len(parts)-1]
 
 		// Try to get checkout info for this clone
-		checkout, err := s.discoverCheckoutFromOS(datasetRestoreName, cloneName)
+		checkout, err := s.discoverCheckoutFromOS(templateName, cloneName)
 		if err != nil {
 			// Log the error but continue with other checkouts
-			fmt.Printf("Warning: failed to load checkout info for %s/%s: %v\n", datasetRestoreName, cloneName, err)
+			fmt.Printf("Warning: failed to load checkout info for %s/%s: %v\n", templateName, cloneName, err)
 			continue
 		}
 

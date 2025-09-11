@@ -7,7 +7,7 @@ import (
 	"os/exec"
 )
 
-func (s *AgentService) DeleteBranch(ctx context.Context, cloneName string, restoreName string) (bool, error) {
+func (s *AgentService) DeleteBranch(ctx context.Context, cloneName string, templateName string) (bool, error) {
 	// Validate and normalize clone name
 	validatedName, err := ValidateCloneName(cloneName)
 	if err != nil {
@@ -16,7 +16,7 @@ func (s *AgentService) DeleteBranch(ctx context.Context, cloneName string, resto
 	cloneName = validatedName
 
 	// Check if checkout exists
-	existing, err := s.discoverCheckoutFromOS(restoreName, cloneName)
+	existing, err := s.discoverCheckoutFromOS(templateName, cloneName)
 	if err != nil {
 		return false, fmt.Errorf("checking existing checkout: %w", err)
 	}
@@ -37,7 +37,7 @@ func (s *AgentService) DeleteBranch(ctx context.Context, cloneName string, resto
 	}
 
 	// Remove ZFS clone
-	cloneDataset := cloneDataset(restoreName, cloneName)
+	cloneDataset := cloneDataset(templateName, cloneName)
 	if datasetExists(cloneDataset) {
 		if err := destroyZFSClone(cloneDataset); err != nil {
 			return false, fmt.Errorf("destroying ZFS clone: %w", err)
@@ -45,7 +45,7 @@ func (s *AgentService) DeleteBranch(ctx context.Context, cloneName string, resto
 	}
 
 	// Remove ZFS snapshot
-	restoreDataset := restoreDataset(restoreName)
+	restoreDataset := restoreDataset(templateName)
 	snapshotName := restoreDataset + "@" + cloneName
 	if snapshotExists(snapshotName) {
 		if err := destroyZFSSnapshot(snapshotName); err != nil {

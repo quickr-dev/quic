@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, restoreName string, createdBy string) (*CheckoutInfo, error) {
+func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, templateName string, createdBy string) (*CheckoutInfo, error) {
 	if !s.tryLockWithShutdownCheck() {
 		return nil, fmt.Errorf("service restarting, please retry in a few seconds")
 	}
@@ -26,7 +26,7 @@ func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, resto
 	}
 	cloneName = validatedName
 
-	existing, err := s.discoverCheckoutFromOS(restoreName, cloneName)
+	existing, err := s.discoverCheckoutFromOS(templateName, cloneName)
 	if err != nil {
 		return nil, fmt.Errorf("checking existing checkout: %w", err)
 	}
@@ -47,7 +47,7 @@ func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, resto
 	}
 
 	// Create ZFS snapshot and clone
-	clonePath, err := s.createZFSClone(restoreName, cloneName)
+	clonePath, err := s.createZFSClone(templateName, cloneName)
 	if err != nil {
 		return nil, fmt.Errorf("creating ZFS clone: %w", err)
 	}
@@ -55,6 +55,7 @@ func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, resto
 	// Store metadata alongside the clone
 	now := time.Now().UTC().Truncate(time.Second)
 	checkout := &CheckoutInfo{
+		TemplateName:  templateName,
 		CloneName:     cloneName,
 		Port:          port,
 		ClonePath:     clonePath,
@@ -363,8 +364,6 @@ func saveCheckoutMetadata(checkout *CheckoutInfo) error {
 		return fmt.Errorf("writing metadata file: %w", err)
 	}
 
-	// Ownership should already be correct since we're running as postgres
-
 	return nil
 }
 
@@ -544,8 +543,8 @@ func waitForPostgresReady(port int, timeout time.Duration) error {
 	return fmt.Errorf("timeout waiting for PostgreSQL to become ready after %v", timeout)
 }
 
-func (s *AgentService) discoverCheckoutFromOS(restoreName, cloneName string) (*CheckoutInfo, error) {
-	cloneDataset := cloneDataset(restoreName, cloneName)
+func (s *AgentService) discoverCheckoutFromOS(templateName, cloneName string) (*CheckoutInfo, error) {
+	cloneDataset := cloneDataset(templateName, cloneName)
 
 	if !datasetExists(cloneDataset) {
 		return nil, nil // Clone doesn't exist
@@ -572,9 +571,10 @@ func (s *AgentService) discoverCheckoutFromOS(restoreName, cloneName string) (*C
 	// create minimal checkout info for cleanup purposes
 	if checkout == nil {
 		checkout = &CheckoutInfo{
-			CloneName: cloneName,
-			ClonePath: clonePath, // May be "none" but still useful for identification
-			Port:      0,         // Unknown port, firewall cleanup will be skipped
+			TemplateName: templateName,
+			CloneName:    cloneName,
+			ClonePath:    clonePath, // May be "none" but still useful for identification
+			Port:         0,         // Unknown port, firewall cleanup will be skipped
 		}
 	}
 
@@ -600,9 +600,10 @@ func loadCheckoutMetadata(clonePath, cloneName string) (*CheckoutInfo, error) {
 	}
 
 	checkout := &CheckoutInfo{
-		CloneName:     cloneName, // Derived from function parameter
+		TemplateName:  getString(metadata, "template_name"),
+		CloneName:     cloneName,
 		Port:          getInt(metadata, "port"),
-		ClonePath:     clonePath, // Derived from function parameter
+		ClonePath:     clonePath,
 		AdminPassword: getString(metadata, "admin_password"),
 		CreatedBy:     getString(metadata, "created_by"),
 	}
