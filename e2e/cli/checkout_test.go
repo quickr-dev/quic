@@ -184,34 +184,6 @@ func extractTokenFromCheckoutOutput(t *testing.T, output string) string {
 	return ""
 }
 
-// func waitForTemplateData(t *testing.T, templateName string) {
-// 	timeout := 2 * time.Minute
-// 	interval := 5 * time.Second
-// 	startTime := time.Now()
-
-// 	t.Logf("Waiting for template data to be available (timeout: %v)", timeout)
-
-// 	for time.Since(startTime) < timeout {
-// 		output, err := psqlTemplate(t, templateName, "SELECT COUNT(*) FROM users")
-// 		if err == nil && strings.Contains(output, "5") {
-// 			t.Logf("✓ Template data available after %v", time.Since(startTime))
-// 			time.Sleep(interval)
-// 			return
-// 		}
-
-// 		if err != nil {
-// 			t.Logf("Template data not ready yet (%v elapsed): %v", time.Since(startTime).Round(time.Second), err)
-// 		} else {
-// 			t.Logf("Template data not ready yet (%v elapsed): expected 5 users, got: %s", time.Since(startTime).Round(time.Second), output)
-// 		}
-// 		time.Sleep(interval)
-// 	}
-
-// 	templateUsersOutput, err := psqlTemplate(t, templateName, "SELECT COUNT(*) FROM users")
-// 	require.NoError(t, err, templateUsersOutput)
-// 	require.Contains(t, templateUsersOutput, "5", "Template should have 5 users after %v timeout", timeout)
-// }
-
 func retryCheckoutUntilReady(t *testing.T, branchName, templateName string, timeout time.Duration) (string, error) {
 	startTime := time.Now()
 	deadline := startTime.Add(timeout)
