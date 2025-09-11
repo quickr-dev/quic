@@ -38,7 +38,7 @@ func (s *AgentService) DeleteBranch(ctx context.Context, cloneName string, templ
 	}
 
 	// Remove ZFS clone
-	cloneDataset := cloneDataset(templateName, cloneName)
+	cloneDataset := branchDataset(templateName, cloneName)
 	if datasetExists(cloneDataset) {
 		if err := destroyZFSClone(cloneDataset); err != nil {
 			return false, fmt.Errorf("destroying ZFS clone: %w", err)
@@ -46,7 +46,7 @@ func (s *AgentService) DeleteBranch(ctx context.Context, cloneName string, templ
 	}
 
 	// Remove ZFS snapshot
-	restoreDataset := restoreDataset(templateName)
+	restoreDataset := templateDataset(templateName)
 	snapshotName := restoreDataset + "@" + cloneName
 	if snapshotExists(snapshotName) {
 		if err := destroyZFSSnapshot(snapshotName); err != nil {

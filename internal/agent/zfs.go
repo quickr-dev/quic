@@ -6,12 +6,12 @@ const (
 	ZPool = "tank"
 )
 
-func restoreDataset(restoreName string) string {
-	return ZPool + "/" + restoreName
+func templateDataset(template string) string {
+	return ZPool + "/" + template
 }
 
-func cloneDataset(restoreName, cloneName string) string {
-	return ZPool + "/" + restoreName + "/" + cloneName
+func branchDataset(template, branch string) string {
+	return ZPool + "/" + template + "/" + branch
 }
 
 func datasetExists(dataset string) bool {

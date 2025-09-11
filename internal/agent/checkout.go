@@ -105,8 +105,8 @@ func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, templ
 }
 
 func (s *AgentService) createZFSClone(restoreName, cloneName string) (string, error) {
-	restoreDataset := restoreDataset(restoreName)
-	cloneDataset := cloneDataset(restoreName, cloneName)
+	restoreDataset := templateDataset(restoreName)
+	cloneDataset := branchDataset(restoreName, cloneName)
 	snapshotName := restoreDataset + "@" + cloneName
 
 	// Check if restore dataset exists
@@ -135,7 +135,7 @@ func (s *AgentService) getCloneMountpoint(restoreName, cloneDataset, cloneName s
 	// Check if clone already exists, if not create it
 	if !datasetExists(cloneDataset) {
 		// Construct snapshot name from clone dataset using the restore dataset
-		restoreDataset := restoreDataset(restoreName)
+		restoreDataset := templateDataset(restoreName)
 		snapshotName := restoreDataset + "@" + cloneName
 		cmd := exec.Command("sudo", "zfs", "clone", snapshotName, cloneDataset)
 		if err := cmd.Run(); err != nil {
@@ -420,7 +420,7 @@ func waitForPostgresReady(port int, timeout time.Duration) error {
 }
 
 func (s *AgentService) discoverCheckoutFromOS(templateName, cloneName string) (*CheckoutInfo, error) {
-	cloneDataset := cloneDataset(templateName, cloneName)
+	cloneDataset := branchDataset(templateName, cloneName)
 
 	if !datasetExists(cloneDataset) {
 		return nil, nil // Clone doesn't exist

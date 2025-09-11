@@ -16,12 +16,15 @@ const (
 func psqlPath(pgVersion string) string {
 	return fmt.Sprintf("/usr/lib/postgresql/%s/bin/psql", pgVersion)
 }
+
 func pgCtlPath(pgVersion string) string {
 	return fmt.Sprintf("/usr/lib/postgresql/%s/bin/pg_ctl", pgVersion)
 }
+
 func pgResetWalPath(pgVersion string) string {
 	return fmt.Sprintf("/usr/lib/postgresql/%s/bin/pg_resetwal", pgVersion)
 }
+
 func pgIsReadyPath(pgVersion string) string {
 	return fmt.Sprintf("/usr/lib/postgresql/%s/bin/pg_isready", pgVersion)
 }
@@ -44,6 +47,5 @@ func ExecPostgresCommand(port int, database, sqlCommand string) (string, error) 
 
 func IsPostgreSQLServerReady(dataDir string) bool {
 	cmd := exec.Command("sudo", "-u", "postgres", pgIsReadyPath(PgVersion), "-h", PgSocketDir)
-	// Exit code 0 means server is running and ready
 	return cmd.Run() == nil
 }
