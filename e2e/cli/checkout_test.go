@@ -11,7 +11,8 @@ import (
 )
 
 func TestQuicCheckout(t *testing.T) {
-	ensureCrunchyBridgeBackup(t, quicE2eClusterName)
+	_, _, _, err := ensureCrunchyBridgeBackup(t, quicE2eClusterName)
+	require.NoError(t, err, "ensureCrunchyBridgeBackup should succeed")
 	vmIP := ensureFreshVM(t, QuicCheckoutVM)
 
 	// Setup host
@@ -51,7 +52,10 @@ func TestQuicCheckout(t *testing.T) {
 	loginOutput, err := runQuic(t, "login", "--token", token)
 	require.NoError(t, err, "quic login should succeed\nOutput: %s", loginOutput)
 
-	// Create checkout/branch
+	// Validate that template has the expected test data before creating branch
+	waitForTemplateData(t, templateName)
+
+	// Create branch
 	branchName := fmt.Sprintf("test-branch-%d", time.Now().UnixNano())
 	checkoutOutput, err := runQuic(t, "checkout", branchName, "--template", templateName)
 	require.NoError(t, err, "quic checkout should succeed\nOutput: %s", checkoutOutput)
@@ -147,11 +151,11 @@ func TestQuicCheckout(t *testing.T) {
 		runInVM(t, QuicCheckoutVM, "sudo -u postgres pg_isready -p", portPart)
 
 		// Test recovery status (should not be in recovery mode)
-		recoveryOutput := runInVM(t, QuicCheckoutVM, fmt.Sprintf("sudo -u postgres psql --no-align --tuples-only -p %s -d postgres -c \"SELECT pg_is_in_recovery();\"", portPart))
+		recoveryOutput := psqlBranch(t, templateName, branchName, "SELECT pg_is_in_recovery()")
 		require.Contains(t, recoveryOutput, "f", "PostgreSQL should not be in recovery mode")
 
 		// Test querying test data
-		usersOutput := runInVM(t, QuicCheckoutVM, fmt.Sprintf("sudo -u postgres psql --no-align --tuples-only -p %s -d quic_test -c \"SELECT COUNT(*) FROM users;\"", portPart))
+		usersOutput := psqlBranch(t, templateName, branchName, "SELECT COUNT(*) FROM users")
 		require.Contains(t, usersOutput, "5", "Should have 5 users from test setup")
 	})
 
@@ -170,8 +174,8 @@ func TestQuicCheckout(t *testing.T) {
 }
 
 func extractTokenFromCheckoutOutput(t *testing.T, output string) string {
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(output, "\n")
+	for line := range lines {
 		if strings.Contains(line, "$ quic login --token") {
 			parts := strings.Fields(line)
 			require.GreaterOrEqual(t, len(parts), 4, "Token line should have at least 4 parts")
@@ -180,4 +184,32 @@ func extractTokenFromCheckoutOutput(t *testing.T, output string) string {
 	}
 	t.Fatal("Could not find token line in output")
 	return ""
+}
+
+func waitForTemplateData(t *testing.T, templateName string) {
+	timeout := 2 * time.Minute
+	interval := 5 * time.Second
+	startTime := time.Now()
+
+	t.Logf("Waiting for template data to be available (timeout: %v)", timeout)
+
+	for time.Since(startTime) < timeout {
+		output, err := psqlTemplate(t, templateName, "SELECT COUNT(*) FROM users")
+		if err == nil && strings.Contains(output, "5") {
+			t.Logf("✓ Template data available after %v", time.Since(startTime))
+			time.Sleep(interval)
+			return
+		}
+
+		if err != nil {
+			t.Logf("Template data not ready yet (%v elapsed): %v", time.Since(startTime).Round(time.Second), err)
+		} else {
+			t.Logf("Template data not ready yet (%v elapsed): expected 5 users, got: %s", time.Since(startTime).Round(time.Second), output)
+		}
+		time.Sleep(interval)
+	}
+
+	templateUsersOutput, err := psqlTemplate(t, templateName, "SELECT COUNT(*) FROM users")
+	require.NoError(t, err, templateUsersOutput)
+	require.Contains(t, templateUsersOutput, "5", "Template should have 5 users after %v timeout", timeout)
 }

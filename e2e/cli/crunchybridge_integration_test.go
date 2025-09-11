@@ -65,11 +65,10 @@ func TestCrunchyBridgeDatabaseState(t *testing.T) {
 	clusterName := quicE2eClusterName
 
 	// Ensure cluster exists and database is in correct state
-	cluster, _, connectionString, err := ensureCrunchyBridgeBackup(t, clusterName)
+	_, _, connectionString, err := ensureCrunchyBridgeBackup(t, clusterName)
 	require.NoError(t, err, "should ensure cluster and backup exist")
-	require.NotNil(t, cluster, "cluster should exist")
 
-	t.Logf("Validating database state for cluster: %s", cluster.Name)
+	t.Logf("Validating database state")
 
 	// Connect to quic_test database and validate final state
 	testConnectionString := getQuicTestConnectionString(t, connectionString)

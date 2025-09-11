@@ -18,8 +18,6 @@ const (
 
 // Ensures a CrunchyBridge cluster exists with at least one backup available
 func ensureCrunchyBridgeBackup(t *testing.T, clusterName string) (*providers.Cluster, []providers.Backup, string, error) {
-	t.Helper()
-
 	// Get API key from environment using test config helper
 	apiKey := getRequiredTestEnv("CB_API_KEY")
 	if apiKey == "" {
@@ -91,7 +89,7 @@ func ensureCrunchyBridgeBackup(t *testing.T, clusterName string) (*providers.Clu
 	}
 
 	// Set up test database with data BEFORE creating backup
-	err = recreateTestDatabase(t, postgresRole.URI)
+	err = ensureTestDatabase(t, postgresRole.URI)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("failed to setup test database: %w", err)
 	}
@@ -140,7 +138,7 @@ func ensureCrunchyBridgeBackup(t *testing.T, clusterName string) (*providers.Clu
 	return cluster, backups, postgresRole.URI, nil
 }
 
-func recreateTestDatabase(t *testing.T, connectionString string) error {
+func ensureTestDatabase(t *testing.T, connectionString string) error {
 	t.Logf("<recreateTestDatabase>")
 
 	db, err := sql.Open("postgres", connectionString)
@@ -149,12 +147,19 @@ func recreateTestDatabase(t *testing.T, connectionString string) error {
 	}
 	defer db.Close()
 
-	// Drop and recreate database
-	_, err = db.Exec("DROP DATABASE IF EXISTS quic_test")
+	// Check if quic_test database already exists
+	var exists bool
+	err = db.QueryRow("SELECT EXISTS(SELECT datname FROM pg_catalog.pg_database WHERE datname = 'quic_test')").Scan(&exists)
 	if err != nil {
-		return fmt.Errorf("failed to drop quic_test database: %w", err)
+		return fmt.Errorf("failed to check if quic_test database exists: %w", err)
 	}
 
+	if exists {
+		t.Logf("quic_test already exists")
+		return nil
+	}
+
+	// Create database only if it doesn't exist
 	_, err = db.Exec("CREATE DATABASE quic_test")
 	if err != nil {
 		return fmt.Errorf("failed to create quic_test database: %w", err)

@@ -277,16 +277,14 @@ host    all             admin           0.0.0.0/0               md5
 }
 
 func updatePostgreSQLConf(confPath string) error {
-	// Read existing config
-	data, err := os.ReadFile(confPath)
+	cmd := exec.Command("sudo", "cat", confPath)
+	data, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("reading postgresql.conf: %w", err)
 	}
 
 	config := string(data)
 
-	// Define clone-specific settings
-	// Try to balance good enough performance and resource utilization to support many running instances
 	cloneSettings := map[string]string{
 		"max_connections":                 "5",
 		"wal_level":                       "minimal",
@@ -311,9 +309,7 @@ func updatePostgreSQLConf(confPath string) error {
 		"autovacuum":                      "off",
 	}
 
-	// Update or add each setting
 	for setting, value := range cloneSettings {
-		// Check if setting exists and replace it, or add if missing
 		settingPattern := fmt.Sprintf("%s = ", setting)
 		lines := strings.Split(config, "\n")
 		found := false
@@ -335,8 +331,7 @@ func updatePostgreSQLConf(confPath string) error {
 		config = strings.Join(lines, "\n")
 	}
 
-	// Write updated config using sudo
-	cmd := exec.Command("sudo", "tee", confPath)
+	cmd = exec.Command("sudo", "tee", confPath)
 	cmd.Stdin = strings.NewReader(config)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("writing postgresql.conf: %w", err)
@@ -363,7 +358,6 @@ func saveCheckoutMetadata(checkout *CheckoutInfo) error {
 		return fmt.Errorf("marshaling metadata: %w", err)
 	}
 
-	// Write metadata file using sudo (directory is owned by postgres)
 	cmd := exec.Command("sudo", "tee", metadataPath)
 	cmd.Stdin = strings.NewReader(string(data))
 	if err := cmd.Run(); err != nil {
@@ -397,14 +391,12 @@ func findAvailablePortFromOS() (int, error) {
 }
 
 func isPortAvailableForClone(port int) bool {
-	// Check if port is in use
 	conn, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		return false
 	}
 	conn.Close()
 
-	// Also check if UFW
 	if hasUFWRule(port) {
 		return false
 	}

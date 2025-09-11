@@ -357,47 +357,18 @@ func findAvailablePortForInit() (int, error) {
 	return 0, fmt.Errorf("no available ports in range %d-%d", StartPort, EndPort)
 }
 
-// multipass exec quic-checkout -- sudo journalctl -u quic-test-1757534974532537000-template --no-pager --since "17:09:00" | head -50
-// ⎿ Sep 10 17:09:45 quic-checkout systemd[1]: Starting quic-test-1757534974532537000-template.service - PostgreSQL database server (restored instance -
-//   test-1757534974532537000)...
-//   Sep 10 17:09:45 quic-checkout postgres[7240]: [1-1] [7240][postmaster][][0] LOG:  redirecting log output to logging collector process
-//   Sep 10 17:09:45 quic-checkout postgres[7240]: [1-2] [7240][postmaster][][0] HINT:  Future log output will appear in directory "log".
-//   Sep 10 17:09:45 quic-checkout pg_ctl[7237]: waiting for server to start....
-//   Sep 10 17:09:45 quic-checkout pg_ctl[7240]: [7240][postmaster][][0] LOG:  redirecting log output to logging collector process
-//   Sep 10 17:09:45 quic-checkout pg_ctl[7240]: [7240][postmaster][][0] HINT:  Future log output will appear in directory "log".
-//   Sep 10 17:09:45 quic-checkout postgres[7240]: [2-1] [7240][postmaster][][0] LOG:  ending log output to stderr
-//   Sep 10 17:09:45 quic-checkout postgres[7240]: [2-2] [7240][postmaster][][0] HINT:  Future log output will go to log destination "syslog".
-//   Sep 10 17:09:45 quic-checkout postgres[7240]: [3-1] [7240][postmaster][][0] LOG:  starting PostgreSQL 16.10 (Ubuntu 16.10-0ubuntu0.24.04.1) on
-//   aarch64-unknown-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0, 64-bit
-//   Sep 10 17:09:45 quic-checkout postgres[7240]: [4-1] [7240][postmaster][][0] LOG:  listening on IPv4 address "127.0.0.1", port 15432
-//   Sep 10 17:09:45 quic-checkout postgres[7240]: [5-1] [7240][postmaster][][0] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.15432"
-//   Sep 10 17:09:45 quic-checkout postgres[7244]: [6-1] [7244][startup][][0] LOG:  database system was interrupted; last known up at 2025-09-10 17:00:01 GMT
-//   Sep 10 17:09:48 quic-checkout postgres[7244]: [7-1] [7244][startup][][0] LOG:  entering standby mode
-//   Sep 10 17:09:48 quic-checkout postgres[7244]: [8-1] [7244][startup][][0] LOG:  starting backup recovery with redo LSN 0/30000028, checkpoint LSN 0/30000060, on
-//   timeline ID 1
-//   Sep 10 17:09:49 quic-checkout postgres[7244]: [9-1] [7244][startup][][0] LOG:  restored log file "000000010000000000000030" from archive
-//   Sep 10 17:09:49 quic-checkout postgres[7244]: [10-1] [7244][startup][1/0][0] LOG:  redo starts at 0/30000028
-//   Sep 10 17:09:50 quic-checkout postgres[7244]: [11-1] [7244][startup][1/0][0] LOG:  restored log file "000000010000000000000031" from archive
-//   Sep 10 17:09:51 quic-checkout postgres[7244]: [12-1] [7244][startup][1/0][0] LOG:  restored log file "000000010000000000000032" from archive
-//   Sep 10 17:09:52 quic-checkout postgres[7244]: [13-1] [7244][startup][1/0][0] LOG:  restored log file "000000010000000000000033" from archive
-//   Sep 10 17:09:53 quic-checkout postgres[7244]: [14-1] [7244][startup][1/0][0] LOG:  completed backup recovery with redo LSN 0/30000028 and end LSN 0/31000050
-//   Sep 10 17:09:53 quic-checkout postgres[7244]: [15-1] [7244][startup][1/0][0] LOG:  consistent recovery state reached at 0/31000050
-//   Sep 10 17:09:53 quic-checkout postgres[7240]: [6-1] [7240][postmaster][][0] LOG:  database system is ready to accept read-only connections
-//   Sep 10 17:09:53 quic-checkout pg_ctl[7237]: ...... done
-//   Sep 10 17:09:53 quic-checkout pg_ctl[7237]: server started
-//   Sep 10 17:09:53 quic-checkout systemd[1]: Started quic-test-1757534974532537000-template.service - PostgreSQL database server (restored instance -
-//   test-1757534974532537000).
-
 func (s *AgentService) waitForPostgreSQLReadyWithJournalLogs(templateName string, timeout time.Duration, stream pb.QuicService_RestoreTemplateServer) error {
-	deadline := time.Now().Add(timeout)
-	var lastCursor string // Empty string means start from recent logs
+	startTime := time.Now()
+	deadline := startTime.Add(timeout)
+	var lastCursor string
 	serviceName := GetTemplateServiceName(templateName)
 
 	for time.Now().Before(deadline) {
-		// Check if PostgreSQL server is ready using pg_ctl status
 		templatePath := fmt.Sprintf("/opt/quic/%s/_restore", templateName)
+
 		if IsPostgreSQLServerReady(templatePath) {
-			s.sendLog(stream, "INFO", "✓ PostgreSQL server is ready")
+			elapsed := time.Since(startTime)
+			s.sendLog(stream, "INFO", fmt.Sprintf("✓ PostgreSQL server is ready (took %v)", elapsed))
 			return nil
 		}
 
@@ -422,9 +393,9 @@ func (s *AgentService) streamRecentJournalLogs(serviceName string, lastCursor *s
 	}
 
 	cmd := exec.Command(args[0], args[1:]...)
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		s.sendLog(stream, "WARN", fmt.Sprintf("Failed to read journal logs: %v", err))
+		s.sendLog(stream, "WARN", fmt.Sprintf("Failed to read journal logs (command: %s): %v, output: %s", strings.Join(args, " "), err, string(output)))
 		return
 	}
 
@@ -467,7 +438,7 @@ func (s *AgentService) streamRecentJournalLogs(serviceName string, lastCursor *s
 
 // getServiceStartTime returns the Unix timestamp when the service was last started
 func getServiceStartTime(serviceName string) string {
-	cmd := exec.Command("sudo", "systemctl", "show", serviceName, "--property=ActiveEnterTimestamp", "--value")
+	cmd := exec.Command("sudo", "systemctl", "show", serviceName, "--property=ExecMainStartTimestamp", "--value")
 	output, err := cmd.Output()
 	if err != nil {
 		// Fallback to 10 seconds ago if we can't get service start time

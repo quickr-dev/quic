@@ -41,7 +41,7 @@ func createRestore(t *testing.T) (*agent.AgentService, *agent.InitResult) {
 	return nil, nil
 }
 
-func getRestorePath(dirname string) string {
+func getTemplatePath(dirname string) string {
 	return fmt.Sprintf("/opt/quic/%s/_restore", dirname)
 }
 

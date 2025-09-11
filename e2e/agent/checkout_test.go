@@ -64,7 +64,7 @@ func TestCheckoutFlow(t *testing.T) {
 		cloneName := generateCloneName()
 
 		// Verify pre-checkout state in the restore dataset
-		restorePath := getRestorePath(restoreResult.Dirname)
+		restorePath := getTemplatePath(restoreResult.Dirname)
 
 		// Verify postmaster.pid points to restore directory before checkout
 		restorePidData := parsePostmasterPid(t, restorePath)
