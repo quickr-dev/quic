@@ -76,12 +76,12 @@ func (s *AgentService) CreateBranch(ctx context.Context, cloneName string, templ
 	}
 
 	// Create and start systemd service for this clone
-	if err := s.createSystemdService(checkout); err != nil {
+	if err := CreateCloneService(checkout.TemplateName, checkout.CloneName, checkout.ClonePath, checkout.Port); err != nil {
 		return nil, fmt.Errorf("creating systemd service: %w", err)
 	}
 
 	// Start the systemd service
-	if err := s.startSystemdService(checkout); err != nil {
+	if err := StartCloneService(checkout.TemplateName, checkout.CloneName, checkout.Port); err != nil {
 		return nil, fmt.Errorf("starting systemd service: %w", err)
 	}
 
@@ -367,123 +367,8 @@ func saveCheckoutMetadata(checkout *CheckoutInfo) error {
 	return nil
 }
 
-func (s *AgentService) createSystemdService(checkout *CheckoutInfo) error {
-	serviceName := fmt.Sprintf("quic-%s-%s", checkout.TemplateName, checkout.CloneName)
-	serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
 
-	serviceContent := fmt.Sprintf(`[Unit]
-Description=Quic PostgreSQL Clone (%s)
-Documentation=https://github.com/quickr-dev/quic
-After=network.target
 
-[Service]
-Type=forking
-User=postgres
-ExecStart=/usr/lib/postgresql/16/bin/pg_ctl start -D %s -o "--port=%d" -w -t 300
-ExecStop=/usr/lib/postgresql/16/bin/pg_ctl stop -D %s -m fast
-ExecReload=/bin/kill -HUP $MAINPID
-KillMode=mixed
-KillSignal=SIGINT
-TimeoutStartSec=300
-TimeoutStopSec=300
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-`, checkout.CloneName, checkout.ClonePath, checkout.Port, checkout.ClonePath)
-
-	// Write service file using sudo tee (safer than bash)
-	cmd := exec.Command("sudo", "tee", serviceFilePath)
-	cmd.Stdin = strings.NewReader(serviceContent)
-	cmd.Stdout = nil // Discard tee output
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("writing systemd service file: %w", err)
-	}
-
-	// Reload systemd daemon
-	cmd = exec.Command("sudo", "systemctl", "daemon-reload")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("reloading systemd daemon: %w", err)
-	}
-
-	// Enable service for auto-start on boot
-	cmd = exec.Command("sudo", "systemctl", "enable", serviceName)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("enabling systemd service: %w", err)
-	}
-
-	return nil
-}
-
-func (s *AgentService) startSystemdService(checkout *CheckoutInfo) error {
-	serviceName := fmt.Sprintf("quic-%s-%s", checkout.TemplateName, checkout.CloneName)
-
-	// Start the service
-	cmd := exec.Command("sudo", "systemctl", "start", serviceName)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// Get service status for debugging
-		statusCmd := exec.Command("sudo", "systemctl", "status", serviceName)
-		statusOutput, _ := statusCmd.CombinedOutput()
-
-		// Get journalctl logs for more details
-		logsCmd := exec.Command("sudo", "journalctl", "-u", serviceName, "--no-pager", "-n", "20")
-		logsOutput, _ := logsCmd.CombinedOutput()
-
-		return fmt.Errorf("starting systemd service: %w (start output: %s) (status: %s) (logs: %s)",
-			err, string(output), string(statusOutput), string(logsOutput))
-	}
-
-	// Wait for PostgreSQL to be ready
-	if err := waitForPostgresReady(checkout.Port, 30*time.Second); err != nil {
-		return fmt.Errorf("PostgreSQL failed to become ready on port %d: %w", checkout.Port, err)
-	}
-
-	// Audit service start
-	auditEvent("systemd_service_start", map[string]interface{}{
-		"clone_name":   checkout.CloneName,
-		"service_name": serviceName,
-		"port":         checkout.Port,
-	})
-
-	return nil
-}
-
-func (s *AgentService) stopSystemdService(checkout *CheckoutInfo) error {
-	serviceName := fmt.Sprintf("quic-%s-%s", checkout.TemplateName, checkout.CloneName)
-
-	// Stop the service
-	cmd := exec.Command("sudo", "systemctl", "stop", serviceName)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("stopping systemd service: %w", err)
-	}
-
-	return nil
-}
-
-func (s *AgentService) removeSystemdService(checkout *CheckoutInfo) error {
-	serviceName := fmt.Sprintf("quic-%s-%s", checkout.TemplateName, checkout.CloneName)
-	serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
-
-	// Stop and disable the service first
-	exec.Command("sudo", "systemctl", "stop", serviceName).Run()
-	exec.Command("sudo", "systemctl", "disable", serviceName).Run()
-
-	// Remove the service file
-	cmd := exec.Command("sudo", "rm", "-f", serviceFilePath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("removing systemd service file: %w", err)
-	}
-
-	// Reload systemd daemon
-	cmd = exec.Command("sudo", "systemctl", "daemon-reload")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("reloading systemd daemon after removal: %w", err)
-	}
-
-	return nil
-}
 
 func (s *AgentService) setupAdminUser(checkout *CheckoutInfo) error {
 	// Connect to the database and set up admin user using Unix socket (more reliable for postgres user)

@@ -25,7 +25,8 @@ func (s *AgentService) DeleteBranch(ctx context.Context, cloneName string, templ
 	}
 
 	// Stop and remove systemd service for this clone
-	if err := s.removeSystemdService(existing); err != nil {
+	serviceName := GetCloneServiceName(existing.TemplateName, existing.CloneName)
+	if err := DeleteService(serviceName); err != nil {
 		log.Printf("Warning: failed to remove systemd service for clone %s: %v", cloneName, err)
 	}
 
