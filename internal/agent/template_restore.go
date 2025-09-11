@@ -115,7 +115,7 @@ func (s *AgentService) initRestoreWithStreaming(req *pb.RestoreTemplateRequest, 
 	s.sendLog(stream, "INFO", fmt.Sprintf("✓ Using port: %d", port))
 
 	// Create systemd service
-	serviceName := fmt.Sprintf("postgresql-%s", req.TemplateName)
+	serviceName := fmt.Sprintf("quic-%s-template", req.TemplateName)
 	s.sendLog(stream, "INFO", fmt.Sprintf("Creating systemd service: %s", serviceName))
 
 	if err := createPostgreSQLSystemdService(req.TemplateName, mountPath, port, serviceName); err != nil {

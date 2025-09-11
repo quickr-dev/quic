@@ -369,7 +369,7 @@ func saveCheckoutMetadata(checkout *CheckoutInfo) error {
 }
 
 func (s *AgentService) createSystemdService(checkout *CheckoutInfo) error {
-	serviceName := fmt.Sprintf("quic-clone-%s", checkout.CloneName)
+	serviceName := fmt.Sprintf("quic-%s-%s", checkout.TemplateName, checkout.CloneName)
 	serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
 
 	serviceContent := fmt.Sprintf(`[Unit]
@@ -418,7 +418,7 @@ WantedBy=multi-user.target
 }
 
 func (s *AgentService) startSystemdService(checkout *CheckoutInfo) error {
-	serviceName := fmt.Sprintf("quic-clone-%s", checkout.CloneName)
+	serviceName := fmt.Sprintf("quic-%s-%s", checkout.TemplateName, checkout.CloneName)
 
 	// Start the service
 	cmd := exec.Command("sudo", "systemctl", "start", serviceName)
@@ -452,7 +452,7 @@ func (s *AgentService) startSystemdService(checkout *CheckoutInfo) error {
 }
 
 func (s *AgentService) stopSystemdService(checkout *CheckoutInfo) error {
-	serviceName := fmt.Sprintf("quic-clone-%s", checkout.CloneName)
+	serviceName := fmt.Sprintf("quic-%s-%s", checkout.TemplateName, checkout.CloneName)
 
 	// Stop the service
 	cmd := exec.Command("sudo", "systemctl", "stop", serviceName)
@@ -464,7 +464,7 @@ func (s *AgentService) stopSystemdService(checkout *CheckoutInfo) error {
 }
 
 func (s *AgentService) removeSystemdService(checkout *CheckoutInfo) error {
-	serviceName := fmt.Sprintf("quic-clone-%s", checkout.CloneName)
+	serviceName := fmt.Sprintf("quic-%s-%s", checkout.TemplateName, checkout.CloneName)
 	serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
 
 	// Stop and disable the service first
