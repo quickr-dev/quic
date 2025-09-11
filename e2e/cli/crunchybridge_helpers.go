@@ -9,6 +9,7 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/quickr-dev/quic/internal/providers"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -83,16 +84,14 @@ func ensureCrunchyBridgeBackup(t *testing.T, clusterName string) (*providers.Clu
 		}
 	}
 
-	// Get postgres superuser connection string first
+	// Get postgres superuser connection string
 	postgresRole, err := client.GetRole(cluster.ID, "postgres")
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("failed to get postgres role: %w", err)
 	}
 
-	t.Logf("Retrieved connection string for cluster %s", cluster.Name)
-
 	// Set up test database with data BEFORE creating backup
-	err = setupTestDatabase(t, postgresRole.URI)
+	err = recreateTestDatabase(t, postgresRole.URI)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("failed to setup test database: %w", err)
 	}
@@ -141,37 +140,27 @@ func ensureCrunchyBridgeBackup(t *testing.T, clusterName string) (*providers.Clu
 	return cluster, backups, postgresRole.URI, nil
 }
 
-// setupTestDatabase creates a test database with sample data
-func setupTestDatabase(t *testing.T, connectionString string) error {
-	t.Helper()
+func recreateTestDatabase(t *testing.T, connectionString string) error {
+	t.Logf("<recreateTestDatabase>")
 
-	// Connect to postgres database (default database)
 	db, err := sql.Open("postgres", connectionString)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 	defer db.Close()
 
-	// Test connection
-	if err := db.Ping(); err != nil {
-		return fmt.Errorf("failed to ping database: %w", err)
+	// Drop and recreate database
+	_, err = db.Exec("DROP DATABASE IF EXISTS quic_test")
+	if err != nil {
+		return fmt.Errorf("failed to drop quic_test database: %w", err)
 	}
 
-	t.Logf("Connected to PostgreSQL successfully")
-
-	// Create quic_test database
 	_, err = db.Exec("CREATE DATABASE quic_test")
 	if err != nil {
-		// Database might already exist, try to continue
-		t.Logf("Database creation failed (might already exist): %v", err)
-	} else {
-		t.Logf("Created database 'quic_test'")
+		return fmt.Errorf("failed to create quic_test database: %w", err)
 	}
 
-	// Close connection to default database and connect to quic_test
-	db.Close()
-
-	// Modify connection string to use quic_test database (replace the database name at the end)
+	// Switch to quic_test database and create table with data in one transaction
 	if !strings.HasSuffix(connectionString, "/postgres") {
 		return fmt.Errorf("connection string does not end with /postgres: %s", connectionString)
 	}
@@ -183,76 +172,47 @@ func setupTestDatabase(t *testing.T, connectionString string) error {
 	}
 	defer testDB.Close()
 
-	// Create users table
-	createTableSQL := `
-		CREATE TABLE IF NOT EXISTS users (
+	// Create table and insert test data
+	expectedUsers := []string{"Alice Johnson", "Bob Smith", "Charlie Brown", "Diana Ross", "Eve Wilson"}
+
+	_, err = testDB.Exec(`
+		CREATE TABLE users (
 			id SERIAL PRIMARY KEY,
 			name VARCHAR(100) NOT NULL UNIQUE
-		)
-	`
-
-	_, err = testDB.Exec(createTableSQL)
+		)`)
 	if err != nil {
 		return fmt.Errorf("failed to create users table: %w", err)
 	}
 
-	t.Logf("Created users table")
-
-	// Ensure database has exactly the expected test users
-	expectedUsers := []string{"Alice Johnson", "Bob Smith", "Charlie Brown", "Diana Ross", "Eve Wilson"}
-
-	// Check current state
-	var existingCount int
-	err = testDB.QueryRow("SELECT COUNT(*) FROM users").Scan(&existingCount)
-	if err != nil {
-		return fmt.Errorf("failed to count existing users: %w", err)
-	}
-
-	// Check if we have exactly the expected users
-	hasCorrectUsers := existingCount == len(expectedUsers)
-	if hasCorrectUsers {
-		// Verify all expected users exist
-		for _, expectedUser := range expectedUsers {
-			var count int
-			err = testDB.QueryRow("SELECT COUNT(*) FROM users WHERE name = $1", expectedUser).Scan(&count)
-			if err != nil {
-				return fmt.Errorf("failed to check user %s: %w", expectedUser, err)
-			}
-			if count != 1 {
-				hasCorrectUsers = false
-				break
-			}
-		}
-	}
-
-	if !hasCorrectUsers {
-		t.Logf("Database state needs correction. Found %d users, expected %d specific users", existingCount, len(expectedUsers))
-
-		// Clean up existing data
-		_, err = testDB.Exec("DELETE FROM users")
+	for _, name := range expectedUsers {
+		_, err = testDB.Exec("INSERT INTO users (name) VALUES ($1)", name)
 		if err != nil {
-			return fmt.Errorf("failed to clean existing users: %w", err)
+			return fmt.Errorf("failed to insert user %s: %w", name, err)
 		}
-
-		// Insert the expected users
-		for _, name := range expectedUsers {
-			_, err = testDB.Exec("INSERT INTO users (name) VALUES ($1)", name)
-			if err != nil {
-				return fmt.Errorf("failed to insert user %s: %w", name, err)
-			}
-		}
-
-		t.Logf("Reset database to correct state with %d users", len(expectedUsers))
-	} else {
-		t.Logf("Database has correct %d users", existingCount)
 	}
 
 	// Verify data was inserted
-	var count int
-	err = testDB.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
+	rows, err := testDB.Query("SELECT name FROM users ORDER BY id")
 	if err != nil {
-		return fmt.Errorf("failed to count users: %w", err)
+		return fmt.Errorf("failed to query users: %w", err)
+	}
+	defer rows.Close()
+
+	var userNames []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return fmt.Errorf("failed to scan user name: %w", err)
+		}
+		userNames = append(userNames, name)
 	}
 
+	if err = rows.Err(); err != nil {
+		return fmt.Errorf("error iterating user rows: %w", err)
+	}
+
+	require.Equal(t, expectedUsers, userNames)
+
+	t.Logf("</recreateTestDatabase>")
 	return nil
 }

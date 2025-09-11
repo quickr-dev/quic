@@ -17,6 +17,7 @@ const (
 	QuicHost2VM    = "quic-host2"
 	QuicTemplateVM = "quic-template"
 	QuicUserVM     = "quic-user"
+	QuicCheckoutVM = "quic-checkout"
 	VMDevices      = "/dev/loop101,/dev/loop102"
 )
 
