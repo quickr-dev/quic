@@ -10,12 +10,20 @@ const (
 	ZPool = "tank"
 )
 
-func templateDataset(template string) string {
+func GetTemplateDataset(template string) string {
 	return ZPool + "/" + template
 }
 
-func branchDataset(template, branch string) string {
+func GetBranchDataset(template, branch string) string {
 	return ZPool + "/" + template + "/" + branch
+}
+
+func GetSnapshotName(template, branch string) string {
+	return ZPool + "/" + template + "@" + branch
+}
+
+func GetBranchMountpoint(template, branch string) string {
+	return "/opt/quic/" + template + "/" + branch
 }
 
 func datasetExists(dataset string) bool {
@@ -41,4 +49,40 @@ func GetMountpoint(dataset string) (string, error) {
 	}
 
 	return mountpoint, nil
+}
+
+func destroyDataset(dataset string) error {
+	output, err := exec.Command("sudo", "zfs", "destroy", dataset).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("destroying ZFS dataset %s: %s", dataset, output)
+	}
+
+	return nil
+}
+
+func destroySnapshot(snapshotName string) error {
+	cmd := exec.Command("sudo", "zfs", "destroy", snapshotName)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("destroying ZFS snapshot %s: %w", snapshotName, err)
+	}
+
+	return nil
+}
+
+func createSnapshot(snapshotName string) error {
+	cmd := exec.Command("sudo", "zfs", "snapshot", snapshotName)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("creating ZFS snapshot %s: %w", snapshotName, err)
+	}
+
+	return nil
+}
+
+func createClone(snapshot string, dataset string, mountpoint string) error {
+	cmd := exec.Command("sudo", "zfs", "clone", "-o", "mountpoint="+mountpoint, snapshot, dataset)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("creating ZFS clone: %w", err)
+	}
+
+	return nil
 }

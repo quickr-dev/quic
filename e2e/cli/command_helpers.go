@@ -89,13 +89,6 @@ func runInVM(t *testing.T, vmName string, command ...string) string {
 	return string(output)
 }
 
-// runInVMExpectError runs a command in VM and returns output even if command fails
-func runInVMExpectError(t *testing.T, vmName string, command string) string {
-	cmd := exec.Command("multipass", "exec", vmName, "--", "bash", "-c", command)
-	output, _ := cmd.CombinedOutput() // Ignore error since we expect it might fail
-	return string(output)
-}
-
 func setupQuicCheckout(t *testing.T, vmName string) (checkoutOutput string, templateName string, branchName string, err error) {
 	// Setup backup
 	_, _, _, err = ensureCrunchyBridgeBackup(t, quicE2eClusterName)

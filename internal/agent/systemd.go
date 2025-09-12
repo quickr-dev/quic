@@ -14,7 +14,7 @@ func GetBranchServiceName(template, branch string) string {
 	return fmt.Sprintf("quic-%s-%s", template, branch)
 }
 
-func CreateTemplateService(templateName, mountPath string, port int) error {
+func CreateTemplateService(templateName, mountPath string, port string) error {
 	serviceName := GetTemplateServiceName(templateName)
 
 	serviceContent := fmt.Sprintf(`[Unit]
@@ -24,7 +24,7 @@ After=network.target zfs-unlock.service
 [Service]
 Type=forking
 User=postgres
-ExecStart=%s start --pgdata=%s --options="--port=%d" --no-wait
+ExecStart=%s start --pgdata=%s --options="--port=%s" --no-wait
 ExecStop=%s stop --pgdata=%s --mode=fast
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=mixed
@@ -41,7 +41,7 @@ WantedBy=multi-user.target
 	return writeSystemdService(serviceName, serviceContent)
 }
 
-func CreateBranchService(templateName, cloneName, clonePath string, port int) error {
+func CreateBranchService(templateName, cloneName, clonePath string, port string) error {
 	serviceName := fmt.Sprintf("quic-%s-%s", templateName, cloneName)
 
 	serviceContent := fmt.Sprintf(`[Unit]
@@ -51,8 +51,8 @@ After=network.target
 [Service]
 Type=forking
 User=postgres
-ExecStart=%s start --pgdata=%s --options="--port=%d" --no-wait
-ExecStop=%s stop --pgdata=%s --mode=fast
+ExecStart=%s start --pgdata=%s --options="--port=%s" --no-wait
+ExecStop=%s stop --pgdata=%s --mode=immediate
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=mixed
 KillSignal=SIGINT
@@ -84,7 +84,7 @@ func StopService(serviceName string) error {
 }
 
 func DeleteService(serviceName string) error {
-	// Stop the service - ignore errors
+	// Stop the service
 	exec.Command("sudo", "systemctl", "stop", serviceName).Run()
 
 	// Disable the service

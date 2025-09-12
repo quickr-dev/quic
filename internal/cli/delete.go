@@ -18,7 +18,7 @@ var deleteCmd = &cobra.Command{
 }
 
 func init() {
-	deleteCmd.Flags().String("template", "", "Template to delete the branch from")
+	deleteCmd.Flags().String("template", "", "Template from which to delete the branch")
 }
 
 func executeDelete(branchName string, cmd *cobra.Command) error {

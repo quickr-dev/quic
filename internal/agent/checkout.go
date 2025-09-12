@@ -14,7 +14,7 @@ import (
 )
 
 func (s *AgentService) CreateBranch(ctx context.Context, branch string, template string, createdBy string) (*BranchInfo, error) {
-	templatePath, err := GetMountpoint(templateDataset(template))
+	templatePath, err := GetMountpoint(GetTemplateDataset(template))
 	if err != nil {
 		return nil, err
 	}
@@ -113,91 +113,66 @@ func (s *AgentService) CreateBranch(ctx context.Context, branch string, template
 	return checkout, nil
 }
 
-func (s *AgentService) createZFSClone(restoreName, cloneName string) (string, error) {
-	restoreDataset := templateDataset(restoreName)
-	cloneDataset := branchDataset(restoreName, cloneName)
-	snapshotName := restoreDataset + "@" + cloneName
+func (s *AgentService) createZFSClone(template, branch string) (string, error) {
+	templateDataset := GetTemplateDataset(template)
 
 	// Check if restore dataset exists
-	if !datasetExists(restoreDataset) {
-		return "", fmt.Errorf("restore dataset %s does not exist", restoreDataset)
+	if !datasetExists(templateDataset) {
+		return "", fmt.Errorf("restore dataset %s does not exist", templateDataset)
 	}
 
-	// Check if snapshot already exists, if not create it
-	if !snapshotExists(snapshotName) {
-		// Coordinate with PostgreSQL for consistent snapshot
-		if err := s.coordinatePostgreSQLBackup(restoreDataset, snapshotName); err != nil {
-			return "", fmt.Errorf("coordinating PostgreSQL backup: %w", err)
-		}
-
-		// Audit ZFS snapshot creation
-		auditEvent("zfs_snapshot_create", map[string]string{
-			"source_dataset": restoreDataset,
-			"snapshot_name":  snapshotName,
-		})
-	}
-
-	return s.getCloneMountpoint(restoreName, cloneDataset, cloneName)
-}
-
-func (s *AgentService) getCloneMountpoint(restoreName, cloneDataset, cloneName string) (string, error) {
-	// Check if clone already exists, if not create it
-	if !datasetExists(cloneDataset) {
-		// Construct snapshot name from clone dataset using the restore dataset
-		restoreDataset := templateDataset(restoreName)
-		snapshotName := restoreDataset + "@" + cloneName
-		cmd := exec.Command("sudo", "zfs", "clone", snapshotName, cloneDataset)
-		if err := cmd.Run(); err != nil {
-			return "", fmt.Errorf("creating ZFS clone: %w", err)
-		}
-
-		// Set explicit mountpoint for the clone to ensure it's mounted
-		expectedMountpoint := "/opt/quic/" + restoreName + "/" + cloneName
-		cmd = exec.Command("sudo", "zfs", "set", "mountpoint="+expectedMountpoint, cloneDataset)
-		if err := cmd.Run(); err != nil {
-			return "", fmt.Errorf("setting ZFS clone mountpoint: %w", err)
-		}
-
-		// Audit ZFS clone creation
-		auditEvent("zfs_clone_create", map[string]string{
-			"source_snapshot": snapshotName,
-			"clone_dataset":   cloneDataset,
-			"mountpoint":      expectedMountpoint,
-		})
-	}
-
-	mountpoint, err := GetMountpoint(cloneDataset)
+	// ZFS snapshot
+	err := s.createBranchSnapshot(template, branch)
 	if err != nil {
-		return "", fmt.Errorf("getting ZFS mountpoint: %w", err)
+		return "", fmt.Errorf("creating branch snapshot: %w", err)
+	}
+
+	// ZFS clone
+	mountpoint, err := s.createBranchClone(template, branch)
+	if err != nil {
+		return "", fmt.Errorf("getting clone mountpoint: %w", err)
 	}
 
 	return mountpoint, nil
 }
 
-func (s *AgentService) coordinatePostgreSQLBackup(restoreDataset, snapshotName string) error {
-	// Get the mount point of the source dataset to find the PostgreSQL data directory
-	cmd := exec.Command("zfs", "get", "-H", "-o", "value", "mountpoint", restoreDataset)
-	output, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("getting source dataset mountpoint: %w", err)
-	}
-	sourcePath := strings.TrimSpace(string(output))
+func (s *AgentService) createBranchClone(template, branch string) (string, error) {
+	branchDataset := GetBranchDataset(template, branch)
+	mountpoint := GetBranchMountpoint(template, branch)
 
-	// Check if PostgreSQL is running on this data directory
+	if !datasetExists(branchDataset) {
+		snapshotName := GetSnapshotName(template, branch)
+		err := createClone(snapshotName, branchDataset, mountpoint)
+		if err != nil {
+			return "", fmt.Errorf("creating branch clone: %w", err)
+		}
+	}
+
+	return mountpoint, nil
+}
+
+func (s *AgentService) createBranchSnapshot(template, branch string) error {
+	snapshotName := GetSnapshotName(template, branch)
+	if snapshotExists(snapshotName) {
+		return nil
+	}
+
+	sourcePath, err := GetMountpoint(GetTemplateDataset(template))
+	if err != nil {
+		return fmt.Errorf("getting mountpoint: %w", err)
+	}
+
 	postmasterPid, isRunning := getPostmasterPid(sourcePath)
 	if !isRunning {
-		// PostgreSQL isn't running, just create snapshot directly
-		cmd := exec.Command("sudo", "zfs", "snapshot", snapshotName)
-		return cmd.Run()
+		// PostgreSQL isn't running, just create snapshot
+		return createSnapshot(snapshotName)
 	}
 
-	// PostgreSQL is running and ready - force checkpoint for consistency then take snapshot
+	// PostgreSQL is running and ready - force checkpoint before taking snapshot
 	if _, err := ExecPostgresCommand(postmasterPid.Port, "postgres", "CHECKPOINT;"); err != nil {
 		return fmt.Errorf("forcing checkpoint: %w", err)
 	}
-
-	cmd = exec.Command("sudo", "zfs", "snapshot", snapshotName)
-	return cmd.Run()
+	return createSnapshot(snapshotName)
 }
 
 func prepareCloneForStartup(clonePath string) error {
@@ -379,7 +354,7 @@ func (s *AgentService) setupAdminUser(branch *BranchInfo) error {
 
 // TODO: use SQLite to save data + OS validation
 func (s *AgentService) discoverBranchFromOS(templateName, cloneName string) (*BranchInfo, error) {
-	branchDataset := branchDataset(templateName, cloneName)
+	branchDataset := GetBranchDataset(templateName, cloneName)
 
 	if !datasetExists(branchDataset) {
 		return nil, nil

@@ -141,7 +141,7 @@ func (s *AgentService) initRestoreWithStreaming(req *pb.RestoreTemplateRequest, 
 		return nil, fmt.Errorf("writing metadata file: %w", err)
 	}
 
-	templatePath, err := GetMountpoint(templateDataset(req.TemplateName))
+	templatePath, err := GetMountpoint(GetTemplateDataset(req.TemplateName))
 	if err != nil {
 		return nil, fmt.Errorf("getting template path: %w", err)
 	}

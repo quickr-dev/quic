@@ -4,18 +4,17 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os/exec"
 )
 
-func (s *AgentService) DeleteBranch(ctx context.Context, cloneName string, templateName string) (bool, error) {
-	validatedName, err := ValidateBranchName(cloneName)
+func (s *AgentService) DeleteBranch(ctx context.Context, branchName string, templateName string) (bool, error) {
+	validatedName, err := ValidateBranchName(branchName)
 	if err != nil {
 		return false, fmt.Errorf("invalid branch name: %w", err)
 	}
-	cloneName = validatedName
+	branchName = validatedName
 
 	// Check if template exists
-	existingBranch, err := s.discoverBranchFromOS(templateName, cloneName)
+	existingBranch, err := s.discoverBranchFromOS(templateName, branchName)
 	if err != nil {
 		return false, fmt.Errorf("checking existing template: %w", err)
 	}
@@ -26,7 +25,7 @@ func (s *AgentService) DeleteBranch(ctx context.Context, cloneName string, templ
 	// Stop and remove systemd service
 	serviceName := GetBranchServiceName(existingBranch.TemplateName, existingBranch.BranchName)
 	if err := DeleteService(serviceName); err != nil {
-		log.Printf("Warning: failed to remove systemd service for clone %s: %v", cloneName, err)
+		log.Printf("Warning: failed to remove systemd service for clone %s: %v", branchName, err)
 	}
 
 	// Close firewall port
@@ -37,51 +36,22 @@ func (s *AgentService) DeleteBranch(ctx context.Context, cloneName string, templ
 	}
 
 	// Remove ZFS clone
-	cloneDataset := branchDataset(templateName, cloneName)
-	if datasetExists(cloneDataset) {
-		if err := destroyZFSClone(cloneDataset); err != nil {
-			return false, fmt.Errorf("destroying ZFS clone: %w", err)
+	branchDataset := GetBranchDataset(templateName, branchName)
+	if datasetExists(branchDataset) {
+		if err := destroyDataset(branchDataset); err != nil {
+			return false, err
 		}
 	}
 
 	// Remove ZFS snapshot
-	restoreDataset := templateDataset(templateName)
-	snapshotName := restoreDataset + "@" + cloneName
+	snapshotName := GetSnapshotName(templateName, branchName)
 	if snapshotExists(snapshotName) {
-		if err := destroyZFSSnapshot(snapshotName); err != nil {
-			return false, fmt.Errorf("destroying ZFS snapshot: %w", err)
+		if err := destroySnapshot(snapshotName); err != nil {
+			return false, err
 		}
 	}
 
-	if err := auditEvent("checkout_delete", existingBranch); err != nil {
-		log.Printf("Warning: failed to audit template deletion: %v", err)
-	}
+	auditEvent("branch_delete", existingBranch)
 
 	return true, nil
-}
-
-func destroyZFSClone(cloneDataset string) error {
-	cmd := exec.Command("sudo", "zfs", "destroy", cloneDataset)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("destroying ZFS clone %s: %w", cloneDataset, err)
-	}
-
-	auditEvent("zfs_clone_destroy", map[string]string{
-		"clone_dataset": cloneDataset,
-	})
-
-	return nil
-}
-
-func destroyZFSSnapshot(snapshotName string) error {
-	cmd := exec.Command("sudo", "zfs", "destroy", snapshotName)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("destroying ZFS snapshot %s: %w", snapshotName, err)
-	}
-
-	auditEvent("zfs_snapshot_destroy", map[string]string{
-		"snapshot_name": snapshotName,
-	})
-
-	return nil
 }

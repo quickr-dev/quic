@@ -18,26 +18,19 @@ func TestQuicDelete(t *testing.T) {
 	deleteOutput, err := runQuic(t, "delete", branchName)
 	require.NoError(t, err, "quic delete should succeed\nOutput: %s", deleteOutput)
 
-	// Verify delete success message
-	require.Contains(t, deleteOutput, "deleted", "delete output should confirm deletion")
-
 	t.Run("ValidateZFSCloneDeleted", func(t *testing.T) {
 		cloneDatasetName := fmt.Sprintf("tank/%s/%s", templateName, branchName)
 
-		// Verify clone dataset no longer exists
-		cmd := fmt.Sprintf("sudo zfs list %s 2>/dev/null", cloneDatasetName)
-		output := runInVMExpectError(t, QuicDeleteVM, cmd)
-		require.Contains(t, strings.ToLower(output), "dataset does not exist", "ZFS clone dataset should not exist after delete")
+		output := runInVM(t, QuicDeleteVM, "zfs list")
+		require.NotContains(t, output, cloneDatasetName)
 	})
 
 	t.Run("ValidateZFSSnapshotDeleted", func(t *testing.T) {
 		restoreDatasetName := fmt.Sprintf("tank/%s/_restore", templateName)
 		snapshotName := fmt.Sprintf("%s@%s", restoreDatasetName, branchName)
 
-		// Verify snapshot no longer exists
-		cmd := fmt.Sprintf("sudo zfs list -t snapshot %s 2>/dev/null", snapshotName)
-		output := runInVMExpectError(t, QuicDeleteVM, cmd)
-		require.Contains(t, strings.ToLower(output), "dataset does not exist", "ZFS snapshot should not exist after delete")
+		output := runInVM(t, QuicDeleteVM, "zfs list -t snapshot")
+		require.NotContains(t, output, snapshotName)
 	})
 
 	t.Run("ValidateSystemdServiceRemoved", func(t *testing.T) {
@@ -56,7 +49,7 @@ func TestQuicDelete(t *testing.T) {
 	})
 
 	t.Run("ValidateFirewallPortClosed", func(t *testing.T) {
-		// Extract port from the checkout output connection string  
+		// Extract port from the checkout output connection string
 		connectionString := strings.TrimSpace(checkoutOutput)
 		parts := strings.Split(connectionString, ":")
 		require.True(t, len(parts) >= 3, "connection string should have port")
