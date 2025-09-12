@@ -15,6 +15,16 @@ import (
 	pb "github.com/quickr-dev/quic/proto"
 )
 
+type InitResult struct {
+	Dirname     string `json:"dirname"`
+	Stanza      string `json:"stanza"`
+	Database    string `json:"database"`
+	MountPath   string `json:"mount_path"`
+	Port        string `json:"port"`
+	ServiceName string `json:"service_name"`
+	CreatedAt   string `json:"created_at"`
+}
+
 func (s *AgentService) TemplateSetup(req *pb.RestoreTemplateRequest, stream pb.QuicService_RestoreTemplateServer) error {
 	s.sendLog(stream, "INFO", "Starting template restore process...")
 
@@ -37,9 +47,9 @@ func (s *AgentService) TemplateSetup(req *pb.RestoreTemplateRequest, stream pb.Q
 		Message: &pb.RestoreTemplateResponse_Result{
 			Result: &pb.RestoreResult{
 				TemplateName:     req.TemplateName,
-				ConnectionString: fmt.Sprintf("postgresql://postgres@localhost:%d/%s", result.Port, req.Database),
+				ConnectionString: fmt.Sprintf("postgresql://postgres@localhost:%s/%s", result.Port, req.Database),
 				MountPath:        result.MountPath,
-				Port:             int32(result.Port),
+				Port:             result.Port,
 				ServiceName:      result.ServiceName,
 			},
 		},
@@ -99,7 +109,7 @@ func (s *AgentService) initRestoreWithStreaming(req *pb.RestoreTemplateRequest, 
 	}
 
 	// Find available port
-	port, err := findAvailablePortForInit()
+	port, err := findAvailablePort()
 	if err != nil {
 		return nil, fmt.Errorf("finding available port: %w", err)
 	}
@@ -131,7 +141,7 @@ func (s *AgentService) initRestoreWithStreaming(req *pb.RestoreTemplateRequest, 
 		return nil, fmt.Errorf("writing metadata file: %w", err)
 	}
 
-	templatePath, err := GetTemplateMountpoint(req.TemplateName)
+	templatePath, err := GetMountpoint(templateDataset(req.TemplateName))
 	if err != nil {
 		return nil, fmt.Errorf("getting template path: %w", err)
 	}
@@ -331,17 +341,7 @@ func (s *AgentService) writeMetadataFile(result *InitResult, mountPath string) e
 	return nil
 }
 
-type InitResult struct {
-	Dirname     string `json:"dirname"`
-	Stanza      string `json:"stanza"`
-	Database    string `json:"database"`
-	MountPath   string `json:"mount_path"`
-	Port        int    `json:"port"`
-	ServiceName string `json:"service_name"`
-	CreatedAt   string `json:"created_at"`
-}
-
-func findAvailablePortForInit() (int, error) {
+func findAvailablePort() (string, error) {
 	for port := StartPort; port <= EndPort; port++ {
 		conn, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 		if err != nil {
@@ -349,8 +349,28 @@ func findAvailablePortForInit() (int, error) {
 		}
 		conn.Close()
 
-		return port, nil
+		portStr := fmt.Sprintf("%d", port)
+		// Just in case a branch instance is down but it will need the port
+		if hasUFWRule(portStr) {
+			continue
+		}
+
+		return portStr, nil
 	}
 
-	return 0, fmt.Errorf("no available ports in range %d-%d", StartPort, EndPort)
+	return "0", fmt.Errorf("no available ports in range %d-%d", StartPort, EndPort)
+}
+
+func isPortAvailableForClone(port string) bool {
+	conn, err := net.Listen("tcp", port)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+
+	if hasUFWRule(port) {
+		return false
+	}
+
+	return true
 }

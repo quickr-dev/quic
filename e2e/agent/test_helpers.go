@@ -185,7 +185,7 @@ func getUFWStatus(t *testing.T) string {
 	return string(output)
 }
 
-func assertUFWTcp(t *testing.T, port int, shouldExist bool, ufwStatus ...string) {
+func assertUFWTcp(t *testing.T, port string, shouldExist bool, ufwStatus ...string) {
 	var status string
 	if len(ufwStatus) > 0 {
 		status = ufwStatus[0]
@@ -193,10 +193,10 @@ func assertUFWTcp(t *testing.T, port int, shouldExist bool, ufwStatus ...string)
 		status = getUFWStatus(t)
 	}
 
-	portStr := fmt.Sprintf("%d/tcp", port)
+	portStr := fmt.Sprintf("%s/tcp", port)
 	if shouldExist {
-		require.Contains(t, status, portStr, "UFW should contain rule for port %d", port)
+		require.Contains(t, status, portStr, "UFW should contain rule for port %s", port)
 	} else {
-		require.NotContains(t, status, portStr, "UFW should not contain rule for port %d", port)
+		require.NotContains(t, status, portStr, "UFW should not contain rule for port %s", port)
 	}
 }

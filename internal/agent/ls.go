@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func (s *AgentService) ListBranches(ctx context.Context, filterByTemplateName string) ([]*CheckoutInfo, error) {
+func (s *AgentService) ListBranches(ctx context.Context, filterByTemplateName string) ([]*BranchInfo, error) {
 	var searchDataset string
 	if filterByTemplateName != "" {
 		searchDataset = ZPool + "/" + filterByTemplateName
@@ -21,12 +21,12 @@ func (s *AgentService) ListBranches(ctx context.Context, filterByTemplateName st
 	if err != nil {
 		// If the specific restore doesn't exist, return empty list instead of error
 		if filterByTemplateName != "" {
-			return []*CheckoutInfo{}, nil
+			return []*BranchInfo{}, nil
 		}
 		return nil, fmt.Errorf("listing ZFS datasets: %w", err)
 	}
 
-	var checkouts []*CheckoutInfo
+	var checkouts []*BranchInfo
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 
 	for _, line := range lines {
@@ -51,7 +51,7 @@ func (s *AgentService) ListBranches(ctx context.Context, filterByTemplateName st
 		cloneName := parts[len(parts)-1]
 
 		// Try to get checkout info for this clone
-		checkout, err := s.discoverCheckoutFromOS(templateName, cloneName)
+		checkout, err := s.discoverBranchFromOS(templateName, cloneName)
 		if err != nil {
 			// Log the error but continue with other checkouts
 			fmt.Printf("Warning: failed to load checkout info for %s/%s: %v\n", templateName, cloneName, err)

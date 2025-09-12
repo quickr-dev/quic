@@ -37,10 +37,10 @@ func pgIsReadyPath(pgVersion string) string {
 	return fmt.Sprintf("/usr/lib/postgresql/%s/bin/pg_isready", pgVersion)
 }
 
-func ExecPostgresCommand(port int, database, sqlCommand string) (string, error) {
+func ExecPostgresCommand(port string, database, sqlCommand string) (string, error) {
 	cmd := exec.Command("sudo", "-u", "postgres", psqlPath(PgVersion),
 		"-h", PgSocketDir,
-		"-p", fmt.Sprintf("%d", port),
+		"-p", port,
 		"-d", database,
 		"--no-align",
 		"--tuples-only",

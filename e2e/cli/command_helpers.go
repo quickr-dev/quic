@@ -96,9 +96,7 @@ func runInVMExpectError(t *testing.T, vmName string, command string) string {
 	return string(output)
 }
 
-// setupQuicCheckout sets up a complete checkout environment and returns the checkout output and error.
-// This extracts the common setup logic from checkout_test.go lines 14-58.
-func setupQuicCheckout(t *testing.T) (checkoutOutput string, templateName string, branchName string, err error) {
+func setupQuicCheckout(t *testing.T, vmName string) (checkoutOutput string, templateName string, branchName string, err error) {
 	// Setup backup
 	_, _, _, err = ensureCrunchyBridgeBackup(t, quicE2eClusterName)
 	if err != nil {
@@ -106,12 +104,12 @@ func setupQuicCheckout(t *testing.T) (checkoutOutput string, templateName string
 	}
 
 	// Setup fresh VM
-	vmIP := ensureFreshVM(t, QuicCheckoutVM)
+	vmIP := ensureFreshVM(t, vmName)
 
 	// Setup host
 	cleanupQuicConfig(t)
 	runQuic(t, "host", "new", vmIP, "--devices", VMDevices)
-	hostSetupOutput := runQuicHostSetupWithAck(t, []string{QuicCheckoutVM})
+	hostSetupOutput := runQuicHostSetupWithAck(t, []string{vmName})
 	t.Log(hostSetupOutput)
 
 	// Create user and login
@@ -125,14 +123,14 @@ func setupQuicCheckout(t *testing.T) (checkoutOutput string, templateName string
 		return "", "", "", fmt.Errorf("token should be extracted from user create output")
 	}
 
-	loginOutput, err := runQuic(t, "login", "--token", token)
+	_, err = runQuic(t, "login", "--token", token)
 	if err != nil {
 		return "", "", "", fmt.Errorf("quic login failed: %w", err)
 	}
 
 	// Create template
 	templateName = fmt.Sprintf("test-%d", time.Now().UnixNano())
-	templateOutput, err := runQuic(t, "template", "new", templateName,
+	_, err = runQuic(t, "template", "new", templateName,
 		"--pg-version", "16",
 		"--cluster-name", quicE2eClusterName,
 		"--database", "quic_test")
@@ -184,7 +182,7 @@ func extractTokenFromCheckoutOutput(t *testing.T, output string) string {
 func retryCheckoutUntilReady(t *testing.T, branchName, templateName string, timeout time.Duration) (string, error) {
 	startTime := time.Now()
 	deadline := startTime.Add(timeout)
-	interval := 1 * time.Second
+	interval := 3 * time.Second
 	expectedErrorMessage := "template is still in recovery mode and not ready for branching"
 
 	t.Log("Attempting to checkout branch")

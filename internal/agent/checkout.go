@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,8 +13,8 @@ import (
 	"time"
 )
 
-func (s *AgentService) CreateBranch(ctx context.Context, branch string, template string, createdBy string) (*CheckoutInfo, error) {
-	templatePath, err := GetTemplateMountpoint(template)
+func (s *AgentService) CreateBranch(ctx context.Context, branch string, template string, createdBy string) (*BranchInfo, error) {
+	templatePath, err := GetMountpoint(templateDataset(template))
 	if err != nil {
 		return nil, err
 	}
@@ -30,13 +29,13 @@ func (s *AgentService) CreateBranch(ctx context.Context, branch string, template
 	defer s.checkoutMutex.Unlock()
 
 	// Validate and normalize clone name
-	validatedName, err := ValidateCloneName(branch)
+	validatedName, err := ValidateBranchName(branch)
 	if err != nil {
 		return nil, fmt.Errorf("invalid clone name: %w", err)
 	}
 	branch = validatedName
 
-	existing, err := s.discoverCheckoutFromOS(template, branch)
+	existing, err := s.discoverBranchFromOS(template, branch)
 	if err != nil {
 		return nil, fmt.Errorf("checking existing checkout: %w", err)
 	}
@@ -45,7 +44,7 @@ func (s *AgentService) CreateBranch(ctx context.Context, branch string, template
 	}
 
 	// Find available port from OS
-	port, err := findAvailablePortFromOS()
+	port, err := findAvailablePort()
 	if err != nil {
 		return nil, fmt.Errorf("finding available port: %w", err)
 	}
@@ -64,11 +63,11 @@ func (s *AgentService) CreateBranch(ctx context.Context, branch string, template
 
 	// Store metadata alongside the clone
 	now := time.Now().UTC().Truncate(time.Second)
-	checkout := &CheckoutInfo{
+	checkout := &BranchInfo{
 		TemplateName:  template,
-		CloneName:     branch,
+		BranchName:    branch,
 		Port:          port,
-		ClonePath:     clonePath,
+		BranchPath:    clonePath,
 		AdminPassword: adminPassword,
 		CreatedBy:     createdBy,
 		CreatedAt:     now,
@@ -86,12 +85,12 @@ func (s *AgentService) CreateBranch(ctx context.Context, branch string, template
 	}
 
 	// Create and start systemd service for this clone
-	if err := CreateBranchService(checkout.TemplateName, checkout.CloneName, checkout.ClonePath, checkout.Port); err != nil {
+	if err := CreateBranchService(checkout.TemplateName, checkout.BranchName, checkout.BranchPath, checkout.Port); err != nil {
 		return nil, fmt.Errorf("creating systemd service: %w", err)
 	}
 
 	// Start the systemd service
-	serviceName := GetBranchServiceName(checkout.TemplateName, checkout.CloneName)
+	serviceName := GetBranchServiceName(checkout.TemplateName, checkout.BranchName)
 	if err := StartService(serviceName); err != nil {
 		return nil, fmt.Errorf("starting systemd service: %w", err)
 	}
@@ -185,7 +184,7 @@ func (s *AgentService) coordinatePostgreSQLBackup(restoreDataset, snapshotName s
 	sourcePath := strings.TrimSpace(string(output))
 
 	// Check if PostgreSQL is running on this data directory
-	port, isRunning := extractPortFromPostmasterPid(sourcePath)
+	postmasterPid, isRunning := getPostmasterPid(sourcePath)
 	if !isRunning {
 		// PostgreSQL isn't running, just create snapshot directly
 		cmd := exec.Command("sudo", "zfs", "snapshot", snapshotName)
@@ -193,7 +192,7 @@ func (s *AgentService) coordinatePostgreSQLBackup(restoreDataset, snapshotName s
 	}
 
 	// PostgreSQL is running and ready - force checkpoint for consistency then take snapshot
-	if _, err := ExecPostgresCommand(port, "postgres", "CHECKPOINT;"); err != nil {
+	if _, err := ExecPostgresCommand(postmasterPid.Port, "postgres", "CHECKPOINT;"); err != nil {
 		return fmt.Errorf("forcing checkpoint: %w", err)
 	}
 
@@ -336,13 +335,14 @@ func updatePostgreSQLConf(confPath string) error {
 	return nil
 }
 
-func saveCheckoutMetadata(checkout *CheckoutInfo) error {
-	metadataPath := filepath.Join(checkout.ClonePath, ".quic-meta.json")
+func saveCheckoutMetadata(checkout *BranchInfo) error {
+	metadataPath := filepath.Join(checkout.BranchPath, ".quic-meta.json")
 
 	metadata := map[string]interface{}{
-		"clone_name":     checkout.CloneName,
+		"template_name":  checkout.TemplateName,
+		"clone_name":     checkout.BranchName,
 		"port":           checkout.Port,
-		"clone_path":     checkout.ClonePath,
+		"clone_path":     checkout.BranchPath,
 		"admin_password": checkout.AdminPassword,
 		"created_by":     checkout.CreatedBy,
 		"created_at":     checkout.CreatedAt.UTC().Format(time.RFC3339),
@@ -363,7 +363,7 @@ func saveCheckoutMetadata(checkout *CheckoutInfo) error {
 	return nil
 }
 
-func (s *AgentService) setupAdminUser(checkout *CheckoutInfo) error {
+func (s *AgentService) setupAdminUser(branch *BranchInfo) error {
 	sqlCommands := fmt.Sprintf(`
 		DO $$ BEGIN
 			CREATE ROLE admin WITH LOGIN SUPERUSER CREATEDB CREATEROLE REPLICATION BYPASSRLS PASSWORD '%s';
@@ -371,73 +371,50 @@ func (s *AgentService) setupAdminUser(checkout *CheckoutInfo) error {
 			WHEN duplicate_object THEN
 				ALTER ROLE admin WITH SUPERUSER CREATEDB CREATEROLE REPLICATION BYPASSRLS PASSWORD '%s';
 		END $$;
-	`, checkout.AdminPassword, checkout.AdminPassword)
+	`, branch.AdminPassword, branch.AdminPassword)
 
-	_, err := ExecPostgresCommand(checkout.Port, "postgres", sqlCommands)
+	_, err := ExecPostgresCommand(branch.Port, "postgres", sqlCommands)
 	return err
 }
 
-func findAvailablePortFromOS() (int, error) {
-	for port := StartPort; port <= EndPort; port++ {
-		if isPortAvailableForClone(port) {
-			return port, nil
-		}
-	}
-	return 0, fmt.Errorf("no available ports in range %d-%d", StartPort, EndPort)
-}
+// TODO: use SQLite to save data + OS validation
+func (s *AgentService) discoverBranchFromOS(templateName, cloneName string) (*BranchInfo, error) {
+	branchDataset := branchDataset(templateName, cloneName)
 
-func isPortAvailableForClone(port int) bool {
-	conn, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-	if err != nil {
-		return false
-	}
-	conn.Close()
-
-	if hasUFWRule(port) {
-		return false
-	}
-
-	return true
-}
-
-func (s *AgentService) discoverCheckoutFromOS(templateName, cloneName string) (*CheckoutInfo, error) {
-	cloneDataset := branchDataset(templateName, cloneName)
-
-	if !datasetExists(cloneDataset) {
+	if !datasetExists(branchDataset) {
 		return nil, nil
 	}
 
-	clonePath, err := GetMountpoint(cloneDataset)
+	branchPath, err := GetMountpoint(branchDataset)
 	if err != nil {
 		return nil, fmt.Errorf("getting ZFS mountpoint: %w", err)
 	}
 
-	var checkout *CheckoutInfo
+	var checkout *BranchInfo
 
 	// If mountpoint is valid, try to load metadata from filesystem
-	if clonePath != "none" && clonePath != "-" && clonePath != "" {
-		checkout, err = loadCheckoutMetadata(clonePath, cloneName)
+	if branchPath != "none" && branchPath != "-" && branchPath != "" {
+		checkout, err = loadBranchMetadata(branchPath, cloneName)
 		if err != nil {
 			return nil, fmt.Errorf("loading checkout metadata: %w", err)
 		}
 	}
 
-	// If no metadata found (either invalid mountpoint or missing file),
-	// create minimal checkout info for cleanup purposes
+	// If no metadata found, create minimal checkout info for cleanup purposes
 	if checkout == nil {
-		checkout = &CheckoutInfo{
+		checkout = &BranchInfo{
 			TemplateName: templateName,
-			CloneName:    cloneName,
-			ClonePath:    clonePath, // May be "none" but still useful for identification
-			Port:         0,         // Unknown port, firewall cleanup will be skipped
+			BranchName:   cloneName,
+			BranchPath:   branchPath,
+			Port:         "0",
 		}
 	}
 
 	return checkout, nil
 }
 
-func loadCheckoutMetadata(clonePath, cloneName string) (*CheckoutInfo, error) {
-	metadataPath := filepath.Join(clonePath, ".quic-meta.json")
+func loadBranchMetadata(branchPath, branchName string) (*BranchInfo, error) {
+	metadataPath := filepath.Join(branchPath, ".quic-meta.json")
 
 	// Read metadata file directly since agent runs as postgres user
 	data, err := os.ReadFile(metadataPath)
@@ -454,11 +431,11 @@ func loadCheckoutMetadata(clonePath, cloneName string) (*CheckoutInfo, error) {
 		return nil, fmt.Errorf("unmarshaling metadata: %w", err)
 	}
 
-	checkout := &CheckoutInfo{
+	checkout := &BranchInfo{
 		TemplateName:  getString(metadata, "template_name"),
-		CloneName:     cloneName,
-		Port:          getInt(metadata, "port"),
-		ClonePath:     clonePath,
+		BranchName:    branchName,
+		Port:          getString(metadata, "port"),
+		BranchPath:    branchPath,
 		AdminPassword: getString(metadata, "admin_password"),
 		CreatedBy:     getString(metadata, "created_by"),
 	}
@@ -476,28 +453,6 @@ func loadCheckoutMetadata(clonePath, cloneName string) (*CheckoutInfo, error) {
 	}
 
 	return checkout, nil
-}
-
-func extractPortFromPostmasterPid(dataDir string) (int, bool) {
-	postmasterPidPath := filepath.Join(dataDir, "postmaster.pid")
-	data, err := os.ReadFile(postmasterPidPath)
-	if err != nil {
-		return 0, false // Can't read postmaster.pid
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	if len(lines) < 4 {
-		return 0, false // postmaster.pid doesn't have expected format
-	}
-
-	// Fourth line contains the port number
-	portLine := strings.TrimSpace(lines[3])
-	var port int
-	if p, err := fmt.Sscanf(portLine, "%d", &port); p == 1 && err == nil {
-		return port, true
-	}
-
-	return 0, false // Couldn't parse port
 }
 
 func generateSecurePassword() (string, error) {

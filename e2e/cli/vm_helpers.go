@@ -18,6 +18,7 @@ const (
 	QuicTemplateVM = "quic-template"
 	QuicUserVM     = "quic-user"
 	QuicCheckoutVM = "quic-checkout"
+	QuicDeleteVM   = "quic-delete"
 	VMDevices      = "/dev/loop101,/dev/loop102"
 )
 

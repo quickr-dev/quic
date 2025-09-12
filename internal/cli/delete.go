@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -37,7 +36,7 @@ func executeDelete(branchName string, cmd *cobra.Command) error {
 
 		_, err := client.DeleteCheckout(ctx, req)
 		if err != nil {
-			return fmt.Errorf("deleting branch: %w", err)
+			return err
 		}
 
 		return nil

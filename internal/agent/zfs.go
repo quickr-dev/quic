@@ -42,11 +42,3 @@ func GetMountpoint(dataset string) (string, error) {
 
 	return mountpoint, nil
 }
-
-func GetTemplateMountpoint(template string) (string, error) {
-	return GetMountpoint(templateDataset(template))
-}
-
-func GetBranchMountpoint(template string, branch string) (string, error) {
-	return GetMountpoint(branchDataset(template, branch))
-}

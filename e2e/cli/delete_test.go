@@ -10,7 +10,7 @@ import (
 
 func TestQuicDelete(t *testing.T) {
 	// Setup checkout using the common setup function
-	checkoutOutput, templateName, branchName, err := setupQuicCheckout(t)
+	checkoutOutput, templateName, branchName, err := setupQuicCheckout(t, QuicDeleteVM)
 	require.NoError(t, err, "checkout setup should succeed")
 	require.Contains(t, checkoutOutput, "postgresql://admin", "checkout should return connection string")
 
@@ -26,7 +26,7 @@ func TestQuicDelete(t *testing.T) {
 
 		// Verify clone dataset no longer exists
 		cmd := fmt.Sprintf("sudo zfs list %s 2>/dev/null", cloneDatasetName)
-		output := runInVMExpectError(t, QuicCheckoutVM, cmd)
+		output := runInVMExpectError(t, QuicDeleteVM, cmd)
 		require.Contains(t, strings.ToLower(output), "dataset does not exist", "ZFS clone dataset should not exist after delete")
 	})
 
@@ -36,7 +36,7 @@ func TestQuicDelete(t *testing.T) {
 
 		// Verify snapshot no longer exists
 		cmd := fmt.Sprintf("sudo zfs list -t snapshot %s 2>/dev/null", snapshotName)
-		output := runInVMExpectError(t, QuicCheckoutVM, cmd)
+		output := runInVMExpectError(t, QuicDeleteVM, cmd)
 		require.Contains(t, strings.ToLower(output), "dataset does not exist", "ZFS snapshot should not exist after delete")
 	})
 
@@ -45,13 +45,13 @@ func TestQuicDelete(t *testing.T) {
 
 		// Verify systemd service is not running
 		cmd := fmt.Sprintf("sudo systemctl is-active %s 2>/dev/null || echo 'inactive'", serviceName)
-		serviceStatusOutput := runInVM(t, QuicCheckoutVM, cmd)
+		serviceStatusOutput := runInVM(t, QuicDeleteVM, cmd)
 		require.NotContains(t, serviceStatusOutput, "active", "PostgreSQL clone service should not be active after delete")
 
 		// Verify service file no longer exists
 		serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
 		cmd = fmt.Sprintf("sudo test -f %s && echo 'exists' || echo 'not found'", serviceFilePath)
-		fileCheckOutput := runInVM(t, QuicCheckoutVM, cmd)
+		fileCheckOutput := runInVM(t, QuicDeleteVM, cmd)
 		require.Contains(t, fileCheckOutput, "not found", "systemd service file should not exist after delete")
 	})
 
@@ -63,7 +63,7 @@ func TestQuicDelete(t *testing.T) {
 		portPart := strings.Split(parts[len(parts)-1], "/")[0]
 
 		// Verify UFW rule was removed for the port
-		ufwOutput := runInVM(t, QuicCheckoutVM, "sudo ufw status")
+		ufwOutput := runInVM(t, QuicDeleteVM, "sudo ufw status")
 		portRule := fmt.Sprintf("%s/tcp", portPart)
 		require.NotContains(t, ufwOutput, portRule, "UFW should not contain rule for checkout port after delete")
 	})
@@ -73,7 +73,7 @@ func TestQuicDelete(t *testing.T) {
 
 		// Verify clone directory no longer exists
 		cmd := fmt.Sprintf("sudo test -d %s && echo 'exists' || echo 'not found'", clonePath)
-		dirCheckOutput := runInVM(t, QuicCheckoutVM, cmd)
+		dirCheckOutput := runInVM(t, QuicDeleteVM, cmd)
 		require.Contains(t, dirCheckOutput, "not found", "clone directory should not exist after delete")
 	})
 

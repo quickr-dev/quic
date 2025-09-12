@@ -70,7 +70,7 @@ func NewClient(host string) (*Client, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("failed to connect to %s as any user (tried: %s): SSH authentication failed. Please ensure SSH keys are configured or SSH agent is running", host, strings.Join(users, ", "))
+	return nil, fmt.Errorf("failed to ssh to %s. Tried users: %s", host, strings.Join(users, ", "))
 }
 
 func (c *Client) Username() string {

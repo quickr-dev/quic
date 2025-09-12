@@ -36,7 +36,7 @@ func TestList(t *testing.T) {
 		// Verify all our clones are in the list
 		foundClones := make(map[string]bool)
 		for _, checkout := range checkouts {
-			foundClones[checkout.CloneName] = true
+			foundClones[checkout.BranchName] = true
 		}
 		require.True(t, foundClones[clone1Name], "Should find clone1")
 		require.True(t, foundClones[clone2Name], "Should find clone2")
@@ -53,7 +53,7 @@ func TestList(t *testing.T) {
 		// Verify only clones from first restore are returned
 		foundClones := make(map[string]bool)
 		for _, checkout := range checkouts {
-			foundClones[checkout.CloneName] = true
+			foundClones[checkout.BranchName] = true
 			// All returned checkouts should be from the first restore
 			require.Equal(t, restoreResult1.Dirname, checkout.GetRestoreName(), "All checkouts should belong to first restore")
 		}
@@ -72,7 +72,7 @@ func TestList(t *testing.T) {
 		// Verify only clones from second restore are returned
 		foundClones := make(map[string]bool)
 		for _, checkout := range checkouts {
-			foundClones[checkout.CloneName] = true
+			foundClones[checkout.BranchName] = true
 			// All returned checkouts should be from the second restore
 			require.Equal(t, restoreResult2.Dirname, checkout.GetRestoreName(), "All checkouts should belong to second restore")
 		}
@@ -111,7 +111,7 @@ func TestList(t *testing.T) {
 		foundCheckout := checkouts[0]
 
 		// Verify checkout info fields
-		require.NotEmpty(t, foundCheckout.CloneName, "Clone name should not be empty")
+		require.NotEmpty(t, foundCheckout.BranchName, "Clone name should not be empty")
 		require.Equal(t, restoreResult1.Dirname, foundCheckout.GetRestoreName(), "Restore name should match")
 		require.Equal(t, createdBy, foundCheckout.CreatedBy, "Created by should match")
 		require.Greater(t, foundCheckout.Port, 0, "Port should be positive")

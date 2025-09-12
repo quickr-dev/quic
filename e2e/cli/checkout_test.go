@@ -2,16 +2,14 @@ package e2e_cli
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestQuicCheckout(t *testing.T) {
-	checkoutOutput, templateName, branchName, err := setupQuicCheckout(t)
+	checkoutOutput, templateName, branchName, err := setupQuicCheckout(t, QuicCheckoutVM)
 	require.NoError(t, err, "quic checkout should succeed\nOutput: %s", checkoutOutput)
 
 	// Verify connection string is returned

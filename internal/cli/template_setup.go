@@ -165,7 +165,7 @@ func setupTemplateOnHost(template config.Template, backupToken *providers.Backup
 				fmt.Printf("✓ Restore completed successfully!\n")
 				fmt.Printf("  Connection: %s\n", msg.Result.ConnectionString)
 				fmt.Printf("  Service: %s\n", msg.Result.ServiceName)
-				fmt.Printf("  Port: %d\n", msg.Result.Port)
+				fmt.Printf("  Port: %s\n", msg.Result.Port)
 
 			case *pb.RestoreTemplateResponse_Error:
 				return fmt.Errorf("restore failed at step '%s': %s", msg.Error.Step, msg.Error.ErrorMessage)
