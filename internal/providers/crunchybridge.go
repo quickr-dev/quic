@@ -311,11 +311,6 @@ func (c *CrunchyBridgeClient) makeRequest(method, url string, body []byte) ([]by
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "Quic/1.0")
 
-	keyLen := len(c.APIKey)
-	if keyLen > 10 {
-		keyLen = 10
-	}
-
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)

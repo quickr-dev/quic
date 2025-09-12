@@ -40,7 +40,7 @@ func GetLatestVersion() (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("Failed to check version: HTTP %d", resp.StatusCode)
+		return "", fmt.Errorf("failed to check version: HTTP %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)

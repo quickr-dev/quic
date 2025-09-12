@@ -20,7 +20,7 @@ func (s *AgentService) CreateBranch(ctx context.Context, branch string, template
 	}
 
 	if !IsPostgreSQLServerReady(templatePath) {
-		return nil, fmt.Errorf("template is still in recovery mode and not ready for branching. This process may take seconds to hours depending on WAL volume. Please retry in a few moments.")
+		return nil, fmt.Errorf("template is still in recovery mode and not ready for branching. This process may take seconds to hours depending on WAL volume. Please retry in a few moments")
 	}
 
 	if !s.tryLockWithShutdownCheck() {
@@ -365,27 +365,17 @@ func (s *AgentService) discoverBranchFromOS(templateName, cloneName string) (*Br
 		return nil, fmt.Errorf("getting ZFS mountpoint: %w", err)
 	}
 
-	var checkout *BranchInfo
+	var branch *BranchInfo
 
 	// If mountpoint is valid, try to load metadata from filesystem
 	if branchPath != "none" && branchPath != "-" && branchPath != "" {
-		checkout, err = loadBranchMetadata(branchPath, cloneName)
+		branch, err = loadBranchMetadata(branchPath, cloneName)
 		if err != nil {
-			return nil, fmt.Errorf("loading checkout metadata: %w", err)
+			return nil, fmt.Errorf("loading branch metadata: %w", err)
 		}
 	}
 
-	// If no metadata found, create minimal checkout info for cleanup purposes
-	if checkout == nil {
-		checkout = &BranchInfo{
-			TemplateName: templateName,
-			BranchName:   cloneName,
-			BranchPath:   branchPath,
-			Port:         "0",
-		}
-	}
-
-	return checkout, nil
+	return branch, nil
 }
 
 func loadBranchMetadata(branchPath, branchName string) (*BranchInfo, error) {

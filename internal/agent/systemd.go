@@ -14,6 +14,10 @@ func GetBranchServiceName(template, branch string) string {
 	return fmt.Sprintf("quic-%s-%s", template, branch)
 }
 
+func GetServiceFilePath(serviceName string) string {
+	return fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
+}
+
 func CreateTemplateService(templateName, mountPath string, port string) error {
 	serviceName := GetTemplateServiceName(templateName)
 
@@ -93,7 +97,7 @@ func DeleteService(serviceName string) error {
 	}
 
 	// Remove service file
-	serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
+	serviceFilePath := GetServiceFilePath(serviceName)
 	if err := exec.Command("sudo", "rm", "-f", serviceFilePath).Run(); err != nil {
 		return fmt.Errorf("removing systemd service file %s: %w", serviceFilePath, err)
 	}
@@ -112,7 +116,7 @@ func ServiceExists(serviceName string) bool {
 }
 
 func writeSystemdService(serviceName, serviceContent string) error {
-	serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
+	serviceFilePath := GetServiceFilePath(serviceName)
 
 	// Write service file
 	cmd := exec.Command("sudo", "tee", serviceFilePath)

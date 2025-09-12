@@ -33,7 +33,7 @@ func GetTemplate(templateFlag string) (*config.Template, error) {
 		if len(projectCfg.Templates) == 0 {
 			return nil, fmt.Errorf("no templates configured in project config")
 		}
-		return nil, fmt.Errorf("multiple templates available. Use the --template flag to specify one.")
+		return nil, fmt.Errorf("multiple templates available. Use the --template flag to specify one")
 	}
 
 	// Validate template exists in project config

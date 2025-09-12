@@ -44,7 +44,7 @@ func (s *QuicServer) DeleteCheckout(ctx context.Context, req *pb.DeleteCheckoutR
 	// 	return nil, fmt.Errorf("user not found in context")
 	// }
 
-	deleted, err := s.agentService.DeleteBranch(ctx, req.CloneName, req.RestoreName)
+	deleted, err := s.agentService.DeleteBranch(ctx, req.RestoreName, req.CloneName)
 	if err != nil {
 		return nil, err
 	}

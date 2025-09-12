@@ -167,7 +167,7 @@ func startVM(t *testing.T, vmName string) {
 
 func launchVM(t *testing.T, vmName string) {
 	t.Logf("Creating VM %s...", vmName)
-	runShell(t, "multipass", "launch", "--name", vmName, "--disk", "10G", "--memory", "2G", "--cpus", "2")
+	runShell(t, "multipass", "launch", "--name", vmName, "--disk", "15G", "--memory", "2G", "--cpus", "2")
 	setupTestDisks(t, vmName)
 }
 

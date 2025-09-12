@@ -2,7 +2,6 @@ package agent
 
 import (
 	"fmt"
-	"log"
 	"os/exec"
 	"strings"
 )
@@ -65,7 +64,6 @@ func IsPostgreSQLServerReady(dataDir string) bool {
 	// - database system is ready to accept read-only connections: accepting connections - nil
 	cmd := exec.Command("sudo", "-u", "postgres", pgIsReadyPath(PgVersion), "--port", postmasterPid.Port)
 	output := cmd.Run()
-	log.Println(">>>> pg_isready output: ", output)
 	return output == nil
 }
 

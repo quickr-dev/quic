@@ -360,17 +360,3 @@ func findAvailablePort() (string, error) {
 
 	return "0", fmt.Errorf("no available ports in range %d-%d", StartPort, EndPort)
 }
-
-func isPortAvailableForClone(port string) bool {
-	conn, err := net.Listen("tcp", port)
-	if err != nil {
-		return false
-	}
-	conn.Close()
-
-	if hasUFWRule(port) {
-		return false
-	}
-
-	return true
-}

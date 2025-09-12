@@ -51,19 +51,14 @@ func GetMountpoint(dataset string) (string, error) {
 	return mountpoint, nil
 }
 
-func destroyDataset(dataset string) error {
-	output, err := exec.Command("sudo", "zfs", "destroy", dataset).CombinedOutput()
+func destroyDataset(dataset string, flags ...string) error {
+	args := []string{"zfs", "destroy"}
+	args = append(args, flags...)
+	args = append(args, dataset)
+
+	output, err := exec.Command("sudo", args...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("destroying ZFS dataset %s: %s", dataset, output)
-	}
-
-	return nil
-}
-
-func destroySnapshot(snapshotName string) error {
-	cmd := exec.Command("sudo", "zfs", "destroy", snapshotName)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("destroying ZFS snapshot %s: %w", snapshotName, err)
 	}
 
 	return nil

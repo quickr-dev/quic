@@ -85,6 +85,7 @@
           quic ALL=(root) NOPASSWD: /bin/chmod, /bin/chown, /bin/cat
           quic ALL=(root) NOPASSWD: /bin/rm -f /etc/systemd/system/quic-*.service
           quic ALL=(root) NOPASSWD: /bin/rm -f /opt/quic/*
+          quic ALL=(root) NOPASSWD: /bin/rmdir /opt/quic/*
           quic ALL=(postgres) NOPASSWD: /usr/lib/postgresql/*/bin/*
         dest: /etc/sudoers.d/quic-agent
         mode: "0440"
