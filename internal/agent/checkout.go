@@ -35,7 +35,7 @@ func (s *AgentService) CreateBranch(ctx context.Context, branch string, template
 	}
 	branch = validatedName
 
-	existing, err := s.discoverBranchFromOS(template, branch)
+	existing, err := s.getBranchMetadata(GetBranchDataset(template, branch))
 	if err != nil {
 		return nil, fmt.Errorf("checking existing checkout: %w", err)
 	}
@@ -315,9 +315,9 @@ func saveCheckoutMetadata(checkout *BranchInfo) error {
 
 	metadata := map[string]interface{}{
 		"template_name":  checkout.TemplateName,
-		"clone_name":     checkout.BranchName,
+		"branch_name":    checkout.BranchName,
 		"port":           checkout.Port,
-		"clone_path":     checkout.BranchPath,
+		"branch_path":    checkout.BranchPath,
 		"admin_password": checkout.AdminPassword,
 		"created_by":     checkout.CreatedBy,
 		"created_at":     checkout.CreatedAt.UTC().Format(time.RFC3339),
@@ -353,23 +353,20 @@ func (s *AgentService) setupAdminUser(branch *BranchInfo) error {
 }
 
 // TODO: use SQLite to save data + OS validation
-func (s *AgentService) discoverBranchFromOS(templateName, cloneName string) (*BranchInfo, error) {
-	branchDataset := GetBranchDataset(templateName, cloneName)
-
-	if !datasetExists(branchDataset) {
+func (s *AgentService) getBranchMetadata(dataset string) (*BranchInfo, error) {
+	if !datasetExists(dataset) {
 		return nil, nil
 	}
 
-	branchPath, err := GetMountpoint(branchDataset)
+	mountpoint, err := GetMountpoint(dataset)
 	if err != nil {
 		return nil, fmt.Errorf("getting ZFS mountpoint: %w", err)
 	}
 
 	var branch *BranchInfo
 
-	// If mountpoint is valid, try to load metadata from filesystem
-	if branchPath != "none" && branchPath != "-" && branchPath != "" {
-		branch, err = loadBranchMetadata(branchPath, cloneName)
+	if mountpoint != "none" && mountpoint != "-" && mountpoint != "" {
+		branch, err = loadBranchMetadata(mountpoint)
 		if err != nil {
 			return nil, fmt.Errorf("loading branch metadata: %w", err)
 		}
@@ -378,10 +375,9 @@ func (s *AgentService) discoverBranchFromOS(templateName, cloneName string) (*Br
 	return branch, nil
 }
 
-func loadBranchMetadata(branchPath, branchName string) (*BranchInfo, error) {
+func loadBranchMetadata(branchPath string) (*BranchInfo, error) {
 	metadataPath := filepath.Join(branchPath, ".quic-meta.json")
 
-	// Read metadata file directly since agent runs as postgres user
 	data, err := os.ReadFile(metadataPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -398,7 +394,7 @@ func loadBranchMetadata(branchPath, branchName string) (*BranchInfo, error) {
 
 	checkout := &BranchInfo{
 		TemplateName:  getString(metadata, "template_name"),
-		BranchName:    branchName,
+		BranchName:    getString(metadata, "branch_name"),
 		Port:          getString(metadata, "port"),
 		BranchPath:    branchPath,
 		AdminPassword: getString(metadata, "admin_password"),
@@ -421,7 +417,7 @@ func loadBranchMetadata(branchPath, branchName string) (*BranchInfo, error) {
 }
 
 func generateSecurePassword() (string, error) {
-	bytes := make([]byte, 24) // 24 bytes = 32 base64 chars
+	bytes := make([]byte, 24)
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
 	}

@@ -46,7 +46,7 @@ func executeList(cmd *cobra.Command) error {
 		}
 
 		// Print header
-		fmt.Printf("%-20s %-15s %-20s\n", "CLONE NAME", "CREATED BY", "CREATED AT")
+		fmt.Printf("%-20s %-15s %-20s\n", "BRANCH", "CREATED BY", "CREATED AT")
 		fmt.Printf("%-20s %-15s %-20s\n", "----------", "----------", "----------")
 
 		// Print each checkout

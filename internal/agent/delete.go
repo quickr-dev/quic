@@ -15,7 +15,7 @@ func (s *AgentService) DeleteBranch(ctx context.Context, template string, branch
 	}
 
 	// Check if template exists
-	branch, err := s.discoverBranchFromOS(template, branchName)
+	branch, err := s.getBranchMetadata(GetBranchDataset(template, branchName))
 	if err != nil {
 		return false, fmt.Errorf("checking existing template: %w", err)
 	}
@@ -32,14 +32,6 @@ func (s *AgentService) DeleteBranch(ctx context.Context, template string, branch
 			log.Printf("Warning: failed to remove systemd service for clone %s: %v", branchName, err)
 		}
 	}
-
-	// Remove ZFS clone
-	// branchDataset := GetBranchDataset(templateName, branchName)
-	// if datasetExists(branchDataset) {
-	// 	if err := destroyDataset(branchDataset); err != nil {
-	// 		return false, err
-	// 	}
-	// }
 
 	snapshotName := GetSnapshotName(template, branchName)
 	if snapshotExists(snapshotName) {

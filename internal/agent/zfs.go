@@ -81,3 +81,24 @@ func createClone(snapshot string, dataset string, mountpoint string) error {
 
 	return nil
 }
+
+func listDatasets(filterByDataset string) ([]string, error) {
+	cmd := exec.Command("sudo", "zfs", "list", "-H", "-o", "name", "-r", filterByDataset)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("listing ZFS datasets under %s: %s", filterByDataset, output)
+	}
+
+	var datasets []string
+	lines := strings.SplitSeq(strings.TrimSpace(string(output)), "\n")
+
+	for line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || line == filterByDataset {
+			continue
+		}
+		datasets = append(datasets, line)
+	}
+
+	return datasets, nil
+}

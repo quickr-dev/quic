@@ -3,65 +3,33 @@ package agent
 import (
 	"context"
 	"fmt"
-	"os/exec"
-	"strings"
 )
 
-func (s *AgentService) ListBranches(ctx context.Context, filterByTemplateName string) ([]*BranchInfo, error) {
-	var searchDataset string
-	if filterByTemplateName != "" {
-		searchDataset = ZPool + "/" + filterByTemplateName
+func (s *AgentService) ListBranches(ctx context.Context, template string) ([]*BranchInfo, error) {
+	var filterByDataset string
+	if template != "" {
+		filterByDataset = GetTemplateDataset(template)
 	} else {
-		searchDataset = ZPool
+		filterByDataset = ZPool
 	}
 
-	// List all datasets recursively under the search dataset
-	cmd := exec.Command("sudo", "zfs", "list", "-H", "-o", "name", "-r", searchDataset)
-	output, err := cmd.Output()
+	var branches []*BranchInfo
+
+	datasets, err := listDatasets(filterByDataset)
 	if err != nil {
-		// If the specific restore doesn't exist, return empty list instead of error
-		if filterByTemplateName != "" {
-			return []*BranchInfo{}, nil
-		}
-		return nil, fmt.Errorf("listing ZFS datasets: %w", err)
+		return branches, nil
 	}
 
-	var checkouts []*BranchInfo
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || line == searchDataset {
-			continue // Skip empty lines and search dataset itself
-		}
-
-		// Skip the _restore datasets
-		if strings.HasSuffix(line, "/_restore") {
-			continue
-		}
-
-		// Extract clone name and restore name from dataset path
-		// Expected format: tank/RESTORE_NAME/CLONE_NAME
-		parts := strings.Split(line, "/")
-		if len(parts) < 3 {
-			continue // Invalid format - need at least tank/restore/clone
-		}
-
-		templateName := parts[len(parts)-2]
-		cloneName := parts[len(parts)-1]
-
-		// Try to get checkout info for this clone
-		checkout, err := s.discoverBranchFromOS(templateName, cloneName)
+	for _, dataset := range datasets {
+		branch, err := s.getBranchMetadata(dataset)
 		if err != nil {
-			// Log the error but continue with other checkouts
-			fmt.Printf("Warning: failed to load checkout info for %s/%s: %v\n", templateName, cloneName, err)
+			fmt.Printf("Warning: failed to load branch %s: %v\n", dataset, err)
 			continue
 		}
-
-		if checkout != nil {
-			checkouts = append(checkouts, checkout)
+		if branch != nil {
+			branches = append(branches, branch)
 		}
 	}
 
-	return checkouts, nil
+	return branches, nil
 }
