@@ -352,7 +352,6 @@ func (s *AgentService) setupAdminUser(branch *BranchInfo) error {
 	return err
 }
 
-// TODO: use SQLite to save data + OS validation
 func (s *AgentService) getBranchMetadata(dataset string) (*BranchInfo, error) {
 	if !datasetExists(dataset) {
 		return nil, nil

@@ -38,7 +38,6 @@ func (s *QuicServer) CreateCheckout(ctx context.Context, req *pb.CreateCheckoutR
 }
 
 func (s *QuicServer) DeleteCheckout(ctx context.Context, req *pb.DeleteCheckoutRequest) (*pb.DeleteCheckoutResponse, error) {
-	// TODO: pass user to DeleteBranch
 	// user, ok := auth.GetUserFromContext(ctx)
 	// if !ok {
 	// 	return nil, fmt.Errorf("user not found in context")
