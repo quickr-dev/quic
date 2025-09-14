@@ -1,7 +1,6 @@
 _Disclaimer: quic is in early development. Use it at your own risk._
 
 # Quic
-
 Get ready-to-work, up-to-date, isolated branches of your Postgres database in seconds, not hours.
 
 Great for development git workflows, PR/staging/demo environments, bug investigation, migration tests, and more.
@@ -9,7 +8,6 @@ Great for development git workflows, PR/staging/demo environments, bug investiga
 # Getting Started
 
 ### Install quic
-
 ```sh
 curl -fsSL https://raw.githubusercontent.com/quickr-dev/quic/main/scripts/install.sh | bash
 ```
@@ -17,33 +15,48 @@ curl -fsSL https://raw.githubusercontent.com/quickr-dev/quic/main/scripts/instal
 Or download the binary directly from the [releases page](https://github.com/quickr-dev/quic/releases).
 
 ### Setup a host
-
 Make sure you have ssh access to your host and run:
 
 ```sh
-# 1. Host setup
 quic host new <ip-address>
 quic host setup
+```
 
-# 2. Template setup
+### Setup a template database
+For now, it just works for CrunchyBridge backups. Feel free to create an issue detailing your use case.
+
+```sh
 quic template new <template-name>
 quic template setup
+```
 
-# 3. Create user for yourself
+### Create a user for yourself
+```sh
 quic user create "Your Name" # outputs an auth token
 quic login --token <token>
+```
 
-# 3.1. Create users for team members & hand them their respective auth tokens
-#      You may also want to create a specific user to use in CI
+You may also want to create users for each team member and CI.
+
+For now, you need to manually hand auth tokens to the respective team members.
+
+```sh
 quic user create "Team Member"
+quic user create "CI"
+```
 
-# 4. Create branches
+### Create branches
+```sh
 quic checkout <branch-name> # outputs a connection string
+```
 
-# 5. List branches
+### List branches
+```sh
 quic ls
+```
 
-# 6. Delete branches
+### Delete branches
+```sh
 quic delete <branch-name>
 ```
 
