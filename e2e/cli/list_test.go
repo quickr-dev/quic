@@ -65,20 +65,9 @@ func TestQuicList(t *testing.T) {
 		require.Contains(t, listOutput, branchName, "list should contain first branch")
 		require.Contains(t, listOutput, secondBranchName, "list should contain second branch")
 
-		// Count the number of branch lines (exclude header and separator lines)
+		// 4 lines: 2 branches + header + separator
 		lines := strings.Split(listOutput, "\n")
-		branchCount := 0
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			// Skip empty lines, header lines, and separator lines
-			if line == "" ||
-				strings.Contains(line, "BRANCH") ||
-				strings.Contains(line, "----------") {
-				continue
-			}
-			branchCount++
-		}
-		require.Equal(t, 2, branchCount, "should list exactly 2 branches")
+		require.Equal(t, 4, len(lines), "should list exactly 2 branches")
 	})
 
 	t.Run("ValidateBranchInfoInList", func(t *testing.T) {
@@ -88,25 +77,16 @@ func TestQuicList(t *testing.T) {
 
 		// Parse the output and find our branch
 		lines := strings.Split(listOutput, "\n")
-		var branchLine string
-		for _, line := range lines {
-			if strings.Contains(line, branchName) {
-				branchLine = strings.TrimSpace(line)
-				break
-			}
-		}
-		require.NotEmpty(t, branchLine, "should find branch in list output")
+		t.Logf(">>> %s", listOutput)
+		branchLine := lines[len(lines)-1]
 
 		// Validate branch line contains expected information
 		require.Contains(t, branchLine, branchName, "branch line should contain branch name")
 		require.Contains(t, branchLine, "Test User", "branch line should contain created by")
 
-		// Validate that the created at timestamp looks reasonable (not empty)
+		// Validate created at
 		parts := strings.Fields(branchLine)
-		require.GreaterOrEqual(t, len(parts), 3, "branch line should have at least 3 parts")
-
-		// The created at part should contain some timestamp-like content
-		createdAtPart := strings.Join(parts[2:], " ") // Everything after the first two parts
+		createdAtPart := strings.Join(parts[2:], " ")
 		require.NotEmpty(t, createdAtPart, "created at field should not be empty")
 	})
 
