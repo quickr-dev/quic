@@ -178,7 +178,7 @@
           poll: 2
           retries: 1
           register: zfs_recordsize
-          failed_when: zfs_recordsize.rc != 0
+          failed_when: zfs_recordsize.finished != 1 or zfs_recordsize.rc | default(1) != 0
 
         - name: Set ZFS compression property
           command: zfs set compression=lz4 tank
@@ -186,7 +186,7 @@
           poll: 2
           retries: 1
           register: zfs_compression
-          failed_when: zfs_compression.rc != 0
+          failed_when: zfs_compression.finished != 1 or zfs_compression.rc | default(1) != 0
 
         - name: Set ZFS atime property
           command: zfs set atime=off tank
@@ -194,7 +194,7 @@
           poll: 2
           retries: 1
           register: zfs_atime
-          failed_when: zfs_atime.rc != 0
+          failed_when: zfs_atime.finished != 1 or zfs_atime.rc | default(1) != 0
 
         - name: Set ZFS logbias property
           command: zfs set logbias=throughput tank
@@ -202,7 +202,7 @@
           poll: 2
           retries: 1
           register: zfs_logbias
-          failed_when: zfs_logbias.rc != 0
+          failed_when: zfs_logbias.finished != 1 or zfs_logbias.rc | default(1) != 0
 
         - name: Verify ZFS pool was created successfully
           command: zpool status tank
@@ -215,7 +215,7 @@
           async: 10
           poll: 2
           register: zfs_verify
-          failed_when: zfs_verify.rc != 0
+          failed_when: zfs_verify.finished != 1 or zfs_verify.rc | default(1) != 0
           changed_when: false
 
         - name: Set postgres ownership on tank pool
