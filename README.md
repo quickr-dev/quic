@@ -14,6 +14,9 @@ curl -fsSL https://raw.githubusercontent.com/quickr-dev/quic/main/scripts/instal
 
 Or download the binary directly from the [releases page](https://github.com/quickr-dev/quic/releases).
 
+### quic.json
+A `quic.json` file will be created to hold configuration used for setting up infrastructure and managing branches.
+
 ### Setup a host
 Make sure you have ssh access to your host and run:
 
