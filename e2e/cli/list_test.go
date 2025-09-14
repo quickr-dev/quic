@@ -66,7 +66,7 @@ func TestQuicList(t *testing.T) {
 		require.Contains(t, listOutput, secondBranchName, "list should contain second branch")
 
 		// 4 lines: 2 branches + header + separator
-		lines := strings.Split(listOutput, "\n")
+		lines := strings.Split(strings.TrimSpace(listOutput), "\n")
 		require.Equal(t, 4, len(lines), "should list exactly 2 branches")
 	})
 
