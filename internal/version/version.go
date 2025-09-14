@@ -60,7 +60,7 @@ func GetLatestVersion() (string, error) {
 
 func IsNewerVersion(current, latest string) bool {
 	if current == "dev" {
-		return true
+		return false
 	}
 
 	currentParts := strings.Split(strings.TrimPrefix(current, "v"), ".")
