@@ -103,7 +103,6 @@ type PostgresRole struct {
 	TeamID    string `json:"team_id"`
 }
 
-// FindClusterByName finds a cluster by name (case-sensitive)
 func (c *CrunchyBridgeClient) FindClusterByName(name string) (*Cluster, error) {
 	clusters, err := c.ListClusters()
 	if err != nil {
@@ -158,7 +157,6 @@ func (c *CrunchyBridgeClient) ListClusters() ([]Cluster, error) {
 	return allClusters, nil
 }
 
-// ListBackups returns available backups for a cluster
 func (c *CrunchyBridgeClient) ListBackups(clusterID string) ([]Backup, error) {
 	var allBackups []Backup
 	cursor := ""
@@ -214,7 +212,6 @@ func (c *CrunchyBridgeClient) CreateBackupToken(clusterID string) (*BackupToken,
 	return &token, nil
 }
 
-// CreateCluster creates a new cluster
 func (c *CrunchyBridgeClient) CreateCluster(req CreateClusterRequest) (*Cluster, error) {
 	url := fmt.Sprintf("%s/clusters", c.BaseURL)
 
@@ -236,7 +233,6 @@ func (c *CrunchyBridgeClient) CreateCluster(req CreateClusterRequest) (*Cluster,
 	return &cluster, nil
 }
 
-// GetCluster retrieves a single cluster by ID
 func (c *CrunchyBridgeClient) GetCluster(clusterID string) (*Cluster, error) {
 	url := fmt.Sprintf("%s/clusters/%s", c.BaseURL, clusterID)
 
@@ -253,7 +249,6 @@ func (c *CrunchyBridgeClient) GetCluster(clusterID string) (*Cluster, error) {
 	return &cluster, nil
 }
 
-// DestroyCluster deletes a cluster
 func (c *CrunchyBridgeClient) DestroyCluster(clusterID string) error {
 	url := fmt.Sprintf("%s/clusters/%s", c.BaseURL, clusterID)
 
@@ -265,7 +260,6 @@ func (c *CrunchyBridgeClient) DestroyCluster(clusterID string) error {
 	return nil
 }
 
-// StartBackup initiates a backup for a cluster
 func (c *CrunchyBridgeClient) StartBackup(clusterID string) error {
 	url := fmt.Sprintf("%s/clusters/%s/actions/start-backup", c.BaseURL, clusterID)
 
@@ -277,7 +271,6 @@ func (c *CrunchyBridgeClient) StartBackup(clusterID string) error {
 	return nil
 }
 
-// GetRole retrieves a PostgreSQL role with connection details
 func (c *CrunchyBridgeClient) GetRole(clusterID, roleName string) (*PostgresRole, error) {
 	url := fmt.Sprintf("%s/clusters/%s/roles/%s", c.BaseURL, clusterID, roleName)
 
@@ -322,11 +315,6 @@ func (c *CrunchyBridgeClient) makeRequest(method, url string, body []byte) ([]by
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	fmt.Printf("DEBUG: Response status: %d, body length: %d bytes\n", resp.StatusCode, len(responseBody))
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		fmt.Printf("DEBUG: Error response body: %s\n", string(responseBody))
-	}
-
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(responseBody))
 	}
@@ -334,11 +322,9 @@ func (c *CrunchyBridgeClient) makeRequest(method, url string, body []byte) ([]by
 	return responseBody, nil
 }
 
-// GeneratePgBackRestConfig generates pgBackRest configuration from backup token
 func (t *BackupToken) GeneratePgBackRestConfig(stanzaName, pgDataPath string) string {
 	var config strings.Builder
 
-	// Global configuration section for all stanzas
 	config.WriteString("[global]\n")
 	config.WriteString("log-path=/var/log/pgbackrest\n")
 	config.WriteString("spool-path=/var/spool/pgbackrest\n")

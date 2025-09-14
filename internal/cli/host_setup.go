@@ -45,7 +45,7 @@ func runHostSetup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no hosts configured in quic.json")
 	}
 
-	if err := validateQuicJson(cmd, quicConfig); err != nil {
+	if err := validateQuicJSON(cmd, quicConfig); err != nil {
 		return err
 	}
 
@@ -162,13 +162,7 @@ func writeAnsibleConfigToTemp() (string, error) {
 }
 
 func createInventoryFile(host config.QuicHost, username string) (string, error) {
-	// Check if we're in test mode (test SSH key exists)
-	testKeyPath := filepath.Join(os.TempDir(), "quic-test-ssh", "id_rsa")
 	sshArgs := "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-
-	if _, err := os.Stat(testKeyPath); err == nil {
-		sshArgs += " -i " + testKeyPath
-	}
 
 	inventoryContent := fmt.Sprintf(`[quic_hosts]
 %s ansible_user=%s ansible_become=yes ansible_ssh_common_args='%s'
@@ -177,7 +171,7 @@ func createInventoryFile(host config.QuicHost, username string) (string, error) 
 	return inventoryFile, os.WriteFile(inventoryFile, []byte(inventoryContent), 0600)
 }
 
-func validateQuicJson(cmd *cobra.Command, quicConfig *config.ProjectConfig) error {
+func validateQuicJSON(cmd *cobra.Command, quicConfig *config.ProjectConfig) error {
 	aliases := make(map[string]bool)
 	for _, host := range quicConfig.Hosts {
 		if aliases[host.Alias] {
