@@ -14,14 +14,13 @@ import (
 )
 
 var templateSetupCmd = &cobra.Command{
-	Use:   "setup [template-name]",
-	Short: "Setup configured templates on hosts",
-	Args:  cobra.MaximumNArgs(1),
+	Use:   "setup",
+	Short: "Setup all configured templates on hosts",
+	Args:  cobra.NoArgs,
 	RunE:  runTemplateSetup,
 }
 
 func runTemplateSetup(cmd *cobra.Command, args []string) error {
-	// Load quic config
 	quicConfig, err := config.LoadProjectConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load quic config: %w", err)
@@ -31,45 +30,26 @@ func runTemplateSetup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no hosts configured. Run 'quic host new' first")
 	}
 
-	// Determine which templates to setup
-	var templatesToSetup []config.Template
-	if len(args) == 1 {
-		templateName := args[0]
-		found := false
-		for _, template := range quicConfig.Templates {
-			if template.Name == templateName {
-				templatesToSetup = []config.Template{template}
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("template '%s' not found in quic.json", templateName)
-		}
-	} else {
-		if len(quicConfig.Templates) == 0 {
-			return fmt.Errorf("no templates configured. Run 'quic template new' first")
-		}
-		templatesToSetup = quicConfig.Templates
+	if len(quicConfig.Templates) == 0 {
+		return fmt.Errorf("no templates configured. Run 'quic template new' first")
 	}
 
-	// Get CrunchyBridge API key from environment
+	// CrunchyBridge integration
 	apiKey := os.Getenv("CB_API_KEY")
 	if apiKey == "" {
-		return fmt.Errorf("CrunchyBridge API key not found. Please provide it:\n$ CB_API_KEY=<YOUR_KEY> quic template setup\n\n-> https://www.crunchybridge.com/account/api-keys")
+		return fmt.Errorf("CrunchyBridge API key not found. Please provide it (https://www.crunchybridge.com/account/api-keys):\n$ CB_API_KEY=<YOUR_KEY> quic template setup")
 	}
 
-	// Create CrunchyBridge client
 	client := providers.NewCrunchyBridgeClient(apiKey)
 
 	// Setup each template
-	for _, template := range templatesToSetup {
+	for _, template := range quicConfig.Templates {
 		if err := setupTemplate(template, client, quicConfig.Hosts); err != nil {
 			return fmt.Errorf("failed to setup template '%s': %w", template.Name, err)
 		}
 	}
 
-	fmt.Printf("✓ Successfully setup %d template(s)\n", len(templatesToSetup))
+	fmt.Printf("✓ Successfully setup %d template(s)\n", len(quicConfig.Templates))
 	return nil
 }
 

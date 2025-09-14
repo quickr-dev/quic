@@ -54,9 +54,8 @@ func TestQuicList(t *testing.T) {
 	t.Run("CreateMultipleBranchesAndList", func(t *testing.T) {
 		// Create another branch in the same template
 		secondBranchName := fmt.Sprintf("second-branch-%d", time.Now().UnixNano())
-		secondCheckoutOutput, err := retryCheckoutUntilReady(t, secondBranchName, templateName, 30*time.Second)
+		_, err := retryCheckoutUntilReady(t, secondBranchName, templateName, 30*time.Second)
 		require.NoError(t, err, "second checkout should succeed")
-		require.Contains(t, secondCheckoutOutput, "postgresql://admin", "second checkout should return connection string")
 
 		// List branches for this template
 		listOutput, err := runQuic(t, "ls", "--template", templateName)

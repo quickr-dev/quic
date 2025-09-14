@@ -142,7 +142,7 @@ func setupQuicCheckout(t *testing.T, vmName string) (checkoutOutput string, temp
 	defer os.Unsetenv("CB_API_KEY")
 
 	t.Log("Running quic template setup...")
-	templateSetupOutput, err := runQuic(t, "template", "setup", templateName)
+	templateSetupOutput, err := runQuic(t, "template", "setup")
 	if err != nil {
 		return "", "", "", fmt.Errorf("quic template setup failed: %w", err)
 	}

@@ -43,7 +43,7 @@ func TestQuicTemplateSetup(t *testing.T) {
 	defer os.Unsetenv("CB_API_KEY")
 
 	t.Log("Running quic template setup...")
-	templateSetupOutput, err := runQuic(t, "template", "setup", templateName)
+	templateSetupOutput, err := runQuic(t, "template", "setup")
 	require.NoError(t, err, "quic template setup should succeed\nOutput: %s", templateSetupOutput)
 	t.Log(templateSetupOutput)
 	t.Log("✓ Finished quic template setup")
