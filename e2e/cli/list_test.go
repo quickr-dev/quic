@@ -76,8 +76,7 @@ func TestQuicList(t *testing.T) {
 		require.NoError(t, err, "quic ls --template should succeed")
 
 		// Parse the output and find our branch
-		lines := strings.Split(listOutput, "\n")
-		t.Logf(">>> %s", listOutput)
+		lines := strings.Split(strings.TrimSpace(listOutput), "\n")
 		branchLine := lines[len(lines)-1]
 
 		// Validate branch line contains expected information
