@@ -179,4 +179,3 @@ func testServerLatency(server string) (time.Duration, error) {
 	conn.Close()
 	return time.Since(start), nil
 }
-

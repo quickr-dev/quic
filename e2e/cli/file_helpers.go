@@ -12,7 +12,7 @@ import (
 
 func cleanupQuicConfig(t *testing.T) {
 	os.Remove("quic.json")
-	
+
 	// Also clean up user config to avoid stale IP addresses
 	homeDir, err := os.UserHomeDir()
 	if err == nil {

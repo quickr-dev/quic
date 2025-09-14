@@ -124,4 +124,3 @@ func TestQuicCheckout(t *testing.T) {
 		require.Contains(t, ufwOutput, portRule, "UFW should contain rule for checkout port")
 	})
 }
-
