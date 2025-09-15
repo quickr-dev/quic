@@ -76,7 +76,7 @@ func runHostSetup(cmd *cobra.Command, args []string) error {
 		hostUsernames[host.IP] = client.Username()
 	}
 
-	if !confirmDestructiveSetup(targetHosts) {
+	if !confirmDestructiveSetup() {
 		fmt.Println("Setup aborted.")
 		return nil
 	}
@@ -86,11 +86,14 @@ func runHostSetup(cmd *cobra.Command, args []string) error {
 		fmt.Printf("\nSetting up host %s (%s)...\n", host.IP, host.Alias)
 		username := hostUsernames[host.IP]
 		if err := setupHost(host, username); err != nil {
-			fmt.Printf("✗ Host %s setup failed: %v\n", host.IP, err)
-		} else {
-			fmt.Printf("✓ Host %s setup completed successfully\n", host.IP)
-			successCount++
+			fmt.Printf("Host %s setup failed: %v\n", host.IP, err)
+			continue
 		}
+		if err := retrieveAndStoreCertificateFingerprint(quicConfig, host); err != nil {
+			fmt.Printf("Warning: Failed to retrieve certificate fingerprint for %s: %v\n", host.IP, err)
+			continue
+		}
+		successCount++
 	}
 
 	failedCount := len(targetHosts) - successCount
@@ -109,7 +112,7 @@ func checkAnsibleInstalled() error {
 	return nil
 }
 
-func confirmDestructiveSetup(hosts []config.QuicHost) bool {
+func confirmDestructiveSetup() bool {
 	fmt.Println("WARNING: This will format devices and permanently delete all of their data.")
 	fmt.Print("Type 'ack' to proceed: ")
 
@@ -218,4 +221,38 @@ func filterHosts(cmd *cobra.Command, allHosts []config.QuicHost, hostsFlag strin
 	}
 
 	return targetHosts, nil
+}
+
+func retrieveAndStoreCertificateFingerprint(quicConfig *config.ProjectConfig, host config.QuicHost) error {
+	client, err := ssh.NewClient(host.IP)
+	if err != nil {
+		return fmt.Errorf("failed to connect via SSH: %w", err)
+	}
+
+	// Extract certificate fingerprint using OpenSSL
+	fingerprintCmd := "openssl x509 -in /etc/quic/certs/server.crt -noout -fingerprint -sha256 | cut -d'=' -f2"
+	output, err := client.RunCommand(fingerprintCmd)
+	if err != nil {
+		return fmt.Errorf("failed to extract certificate fingerprint: %w", err)
+	}
+
+	fingerprint := strings.TrimSpace(string(output))
+	if fingerprint == "" {
+		return fmt.Errorf("certificate fingerprint is empty")
+	}
+
+	// update the host in the configuration
+	for i := range quicConfig.Hosts {
+		if quicConfig.Hosts[i].IP == host.IP {
+			quicConfig.Hosts[i].CertificateFingerprint = fingerprint
+			break
+		}
+	}
+
+	// Save the updated configuration
+	if err := quicConfig.Save(); err != nil {
+		return fmt.Errorf("failed to save updated configuration: %w", err)
+	}
+
+	return nil
 }

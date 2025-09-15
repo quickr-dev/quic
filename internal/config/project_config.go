@@ -19,10 +19,11 @@ type ProjectConfig struct {
 }
 
 type QuicHost struct {
-	IP               string   `json:"ip"`
-	Alias            string   `json:"alias"`
-	EncryptionAtRest string   `json:"encryptionAtRest"`
-	Devices          []string `json:"devices"`
+	IP                     string   `json:"ip"`
+	Alias                  string   `json:"alias"`
+	EncryptionAtRest       string   `json:"encryptionAtRest"`
+	Devices                []string `json:"devices"`
+	CertificateFingerprint string   `json:"certificateFingerprint,omitempty"`
 }
 
 type Template struct {
@@ -117,6 +118,15 @@ func (c *ProjectConfig) validateHost(host QuicHost) error {
 		}
 	}
 
+	return nil
+}
+
+func (c *ProjectConfig) GetHostByIP(ip string) *QuicHost {
+	for i := range c.Hosts {
+		if c.Hosts[i].IP == ip {
+			return &c.Hosts[i]
+		}
+	}
 	return nil
 }
 

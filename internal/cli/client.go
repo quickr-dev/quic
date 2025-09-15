@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"strings"
@@ -58,9 +60,25 @@ func executeWithClient(fn func(pb.QuicServiceClient, context.Context) error) err
 }
 
 func executeWithClientOnHost(host, authToken string, timeout time.Duration, fn func(pb.QuicServiceClient, context.Context) error) error {
+	projectConfig, err := config.LoadProjectConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load project config: %w", err)
+	}
+
+	hostConfig := projectConfig.GetHostByIP(host)
+	if hostConfig == nil {
+		return fmt.Errorf("host %s not found in configuration", host)
+	}
+
+	if hostConfig.CertificateFingerprint == "" {
+		return fmt.Errorf("no certificate fingerprint configured for host %s. Please run 'quic host setup' first", host)
+	}
+
 	tlsConfig := &tls.Config{
-		// base-setup.yml creates self-signed certs so we skip verification
 		InsecureSkipVerify: true,
+		VerifyConnection: func(cs tls.ConnectionState) error {
+			return verifyCertificateFingerprint(hostConfig.CertificateFingerprint, cs.PeerCertificates[0])
+		},
 	}
 
 	conn, err := grpc.Dial(
@@ -81,4 +99,26 @@ func executeWithClientOnHost(host, authToken string, timeout time.Duration, fn f
 
 	client := pb.NewQuicServiceClient(conn)
 	return fn(client, ctx)
+}
+
+// verifyCertificateFingerprint compares certificate fingerprints.
+//
+// expectedFingerprint: SHA-256 fingerprint from OpenSSL
+// Example: "AA:BB:CC:DD:EE:FF:11:22:33:44:55:66:77:88:99:00:11:22:33:44:55:66:77:88:99:00:11:22:33:44:55:66"
+//
+// cert: X.509 certificate from TLS connection
+func verifyCertificateFingerprint(expectedFingerprint string, cert *x509.Certificate) error {
+	// Calculate SHA-256 fingerprint of the certificate's raw bytes
+	hash := sha256.Sum256(cert.Raw)
+	actualFingerprint := fmt.Sprintf("%X", hash[:])
+
+	// Normalize expected fingerprint: remove colons, convert to uppercase
+	// OpenSSL outputs: "AA:BB:CC:DD" -> we want: "AABBCCDD"
+	expectedNormalized := strings.ToUpper(strings.ReplaceAll(expectedFingerprint, ":", ""))
+
+	if expectedNormalized != actualFingerprint {
+		return fmt.Errorf("certificate fingerprint mismatch: expected %s, got %s", expectedFingerprint, actualFingerprint)
+	}
+
+	return nil
 }
