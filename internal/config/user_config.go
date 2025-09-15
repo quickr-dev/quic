@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
@@ -22,32 +23,16 @@ type hostMetrics struct {
 	LastSuccess   time.Time `json:"last_success"`
 }
 
+type result struct {
+	server   string
+	duration time.Duration
+	err      error
+}
+
 const (
 	configDirName  = "quic"
 	configFileName = "config.json"
 )
-
-func getConfigDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	// Use XDG config directory if available
-	if xdgConfig := os.Getenv("XDG_CONFIG_HOME"); xdgConfig != "" {
-		return filepath.Join(xdgConfig, configDirName), nil
-	}
-
-	return filepath.Join(homeDir, ".config", configDirName), nil
-}
-
-func getConfigPath() (string, error) {
-	configDir, err := getConfigDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(configDir, configFileName), nil
-}
 
 func LoadUserConfig() (*UserConfig, error) {
 	configPath, err := getConfigPath()
@@ -55,22 +40,39 @@ func LoadUserConfig() (*UserConfig, error) {
 		return nil, err
 	}
 
-	// If config doesn't exist, create default
+	var config *UserConfig
+
+	// If config doesn't exist, create default structure
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return createDefaultConfig()
+		config = createDefaultConfig()
+	} else {
+		// Load existing config
+		data, err := os.ReadFile(configPath)
+		if err != nil {
+			return nil, err
+		}
+
+		var loadedConfig UserConfig
+		if err := json.Unmarshal(data, &loadedConfig); err != nil {
+			return nil, err
+		}
+		config = &loadedConfig
 	}
 
-	data, err := os.ReadFile(configPath)
+	// Validate and fix config issues
+	configChanged, err := validateAndFixConfig(config)
 	if err != nil {
 		return nil, err
 	}
 
-	var config UserConfig
-	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, err
+	// Save config if any fixes were applied
+	if configChanged {
+		if err := config.Save(); err != nil {
+			return nil, fmt.Errorf("failed to save fixed config: %w", err)
+		}
 	}
 
-	return &config, nil
+	return config, nil
 }
 
 func (c *UserConfig) Save() error {
@@ -93,15 +95,36 @@ func (c *UserConfig) Save() error {
 	return os.WriteFile(configPath, data, 0644)
 }
 
-func createDefaultConfig() (*UserConfig, error) {
+func getConfigDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	if xdgConfig := os.Getenv("XDG_CONFIG_HOME"); xdgConfig != "" {
+		return filepath.Join(xdgConfig, configDirName), nil
+	}
+
+	return filepath.Join(homeDir, ".config", configDirName), nil
+}
+
+func getConfigPath() (string, error) {
+	configDir, err := getConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(configDir, configFileName), nil
+}
+
+func selectBestHost() (string, map[string]hostMetrics, error) {
 	// Load project config to get available hosts
 	projectConfig, err := LoadProjectConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load project config: %w", err)
+		return "", nil, fmt.Errorf("failed to load project config: %w", err)
 	}
 
 	if len(projectConfig.Hosts) == 0 {
-		return nil, fmt.Errorf("no hosts configured in project config")
+		return "", nil, fmt.Errorf("no hosts configured in project config")
 	}
 
 	// Extract host IPs from project config
@@ -112,36 +135,28 @@ func createDefaultConfig() (*UserConfig, error) {
 
 	host, hostResults := getLowestLatencyHost(hostIPs)
 	if host == "" {
-		return nil, fmt.Errorf("no servers are reachable")
+		return "", nil, fmt.Errorf("no servers are reachable")
 	}
 
-	config := &UserConfig{
-		SelectedHost:    host,
-		LastServerCheck: time.Now(),
-		HostMetrics:     make(map[string]hostMetrics),
-	}
-
+	// Build host metrics from results
+	metrics := make(map[string]hostMetrics)
 	for server, result := range hostResults {
 		if result.err == nil {
-			config.HostMetrics[server] = hostMetrics{
+			metrics[server] = hostMetrics{
 				LastLatencyMS: int(result.duration.Milliseconds()),
 				LastSuccess:   time.Now(),
 			}
 		}
 	}
 
-	// Save the config
-	if err := config.Save(); err != nil {
-		return nil, err
-	}
-
-	return config, nil
+	return host, metrics, nil
 }
 
-type result struct {
-	server   string
-	duration time.Duration
-	err      error
+func createDefaultConfig() *UserConfig {
+	return &UserConfig{
+		LastServerCheck: time.Now(),
+		HostMetrics:     make(map[string]hostMetrics),
+	}
 }
 
 func getLowestLatencyHost(ips []string) (string, map[string]result) {
@@ -178,4 +193,45 @@ func testServerLatency(server string) (time.Duration, error) {
 	}
 	conn.Close()
 	return time.Since(start), nil
+}
+
+func validateAndFixConfig(cfg *UserConfig) (bool, error) {
+	// Auth token missing - can't fix this, return error
+	if cfg.AuthToken == "" {
+		return false, fmt.Errorf("no auth token configured. Please run 'quic login --token <token>'")
+	}
+
+	var configChanged bool
+
+	// Check if we need to select/fix the host
+	needsHostSelection := false
+
+	if cfg.SelectedHost == "" {
+		needsHostSelection = true
+	} else {
+		// Check if host exists in project config
+		projectConfig, err := LoadProjectConfig()
+		if err != nil {
+			return false, fmt.Errorf("failed to load project config: %w", err)
+		}
+
+		hostConfig := projectConfig.GetHostByIP(cfg.SelectedHost)
+		if hostConfig == nil {
+			needsHostSelection = true
+		}
+	}
+
+	if needsHostSelection {
+		host, metrics, err := selectBestHost()
+		if err != nil {
+			return false, fmt.Errorf("failed to select host: %w", err)
+		}
+
+		cfg.SelectedHost = host
+		cfg.LastServerCheck = time.Now()
+		maps.Copy(cfg.HostMetrics, metrics)
+		configChanged = true
+	}
+
+	return configChanged, nil
 }

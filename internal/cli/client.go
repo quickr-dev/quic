@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"net"
 	"strings"
 	"time"
 
@@ -20,40 +19,11 @@ import (
 
 const DefaultTimeout = 60 * time.Second
 
-func validateConfig(cfg *config.UserConfig) error {
-	var errors []string
-
-	if cfg.AuthToken == "" {
-		errors = append(errors, "no auth token configured. Please run 'quic login --token <token>'")
-	}
-
-	if cfg.SelectedHost == "" {
-		errors = append(errors, "no server selected in config")
-	}
-
-	if cfg.SelectedHost != "" && !isValidHost(cfg.SelectedHost) {
-		errors = append(errors, "selected host has invalid format")
-	}
-
-	if len(errors) > 0 {
-		return fmt.Errorf("configuration validation failed: %s", strings.Join(errors, ", "))
-	}
-
-	return nil
-}
-
-func isValidHost(host string) bool {
-	return net.ParseIP(host) != nil
-}
 
 func executeWithClient(fn func(pb.QuicServiceClient, context.Context) error) error {
 	cfg, err := config.LoadUserConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
-	}
-
-	if err := validateConfig(cfg); err != nil {
-		return err
 	}
 
 	return executeWithClientOnHost(cfg.SelectedHost, cfg.AuthToken, DefaultTimeout, fn)
