@@ -83,13 +83,11 @@ func runTemplateNew(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Load quic config
 	quicConfig, err := config.LoadProjectConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load quic config: %w", err)
 	}
 
-	// Create template
 	template := config.Template{
 		Name:      templateName,
 		PGVersion: pgVersion,
@@ -100,17 +98,21 @@ func runTemplateNew(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	// Add template to config
 	if err := quicConfig.AddTemplate(template); err != nil {
 		return fmt.Errorf("failed to add template: %w", err)
 	}
 
-	// Save config
-	if err := quicConfig.Save(); err != nil {
-		return fmt.Errorf("failed to save quic config: %w", err)
+	// Set this template as the selected template in user config
+	userConfig, err := config.LoadUserConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load user config: %w", err)
 	}
 
-	fmt.Printf("Added template '%s' (PostgreSQL %s, Database: %s, CrunchyBridge: %s) to quic.json\n", templateName, pgVersion, database, clusterName)
+	if err := userConfig.SetSelectedTemplate(templateName); err != nil {
+		return fmt.Errorf("failed to set selected template: %w", err)
+	}
+
+	fmt.Printf("Added template '%s' to quic.json and set as selected template\n", templateName)
 
 	return nil
 }

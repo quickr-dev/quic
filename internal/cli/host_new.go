@@ -51,8 +51,8 @@ func runHostNew(cmd *cobra.Command, args []string) error {
 	var selectedDevices []string
 
 	if devicesFlag != "" {
-		specifiedDevices := strings.Split(devicesFlag, ",")
-		for _, device := range specifiedDevices {
+		specifiedDevices := strings.SplitSeq(devicesFlag, ",")
+		for device := range specifiedDevices {
 			device = strings.TrimSpace(device)
 
 			// Validate path exists on the host
@@ -102,11 +102,17 @@ func runHostNew(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to add host: %w", err)
 	}
 
-	if err := quicConfig.Save(); err != nil {
-		return fmt.Errorf("failed to save quic config: %w", err)
+	// Set this host as the selected host in user config
+	userConfig, err := config.LoadUserConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load user config: %w", err)
 	}
 
-	fmt.Printf("Added host '%s' (%s) to quic.json\n", host.Alias, ip)
+	if err := userConfig.SetSelectedHost(ip); err != nil {
+		return fmt.Errorf("failed to set selected host: %w", err)
+	}
+
+	fmt.Printf("Added host '%s' (%s) to quic.json and set as selected host\n", host.Alias, ip)
 
 	return nil
 }

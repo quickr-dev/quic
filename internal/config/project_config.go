@@ -58,7 +58,7 @@ func LoadProjectConfig() (*ProjectConfig, error) {
 	return &config, nil
 }
 
-func (c *ProjectConfig) Save() error {
+func (c *ProjectConfig) save() error {
 	configPath := getQuicConfigPath()
 
 	data, err := json.MarshalIndent(c, "", "  ")
@@ -79,7 +79,7 @@ func (c *ProjectConfig) AddHost(host QuicHost) error {
 	}
 
 	c.Hosts = append(c.Hosts, host)
-	return nil
+	return c.save()
 }
 
 func (c *ProjectConfig) AddTemplate(template Template) error {
@@ -88,7 +88,17 @@ func (c *ProjectConfig) AddTemplate(template Template) error {
 	}
 
 	c.Templates = append(c.Templates, template)
-	return nil
+	return c.save()
+}
+
+func (c *ProjectConfig) SetHostCertificateFingerprint(ip, fingerprint string) error {
+	for i := range c.Hosts {
+		if c.Hosts[i].IP == ip {
+			c.Hosts[i].CertificateFingerprint = fingerprint
+			return c.save()
+		}
+	}
+	return fmt.Errorf("host with IP %s not found", ip)
 }
 
 func (c *ProjectConfig) validateHost(host QuicHost) error {

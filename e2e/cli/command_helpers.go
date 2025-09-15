@@ -16,6 +16,10 @@ import (
 func runQuic(t *testing.T, args ...string) (string, error) {
 	cmdArgs := append([]string{"../../bin/quic"}, args...)
 	output, err := exec.Command(cmdArgs[0], cmdArgs[1:]...).CombinedOutput()
+	if os.Getenv("DEBUG") != "" {
+		t.Logf("$ %v", cmdArgs)
+		t.Logf("↳ %s", string(output))
+	}
 
 	return string(output), err
 }
@@ -100,7 +104,7 @@ func setupQuicCheckout(t *testing.T, vmName string) (checkoutOutput string, temp
 	vmIP := ensureFreshVM(t, vmName)
 
 	// Setup host
-	cleanupQuicConfig(t)
+	rmConfigFiles(t)
 	runQuic(t, "host", "new", vmIP, "--devices", VMDevices)
 	hostSetupOutput := runQuicHostSetupWithAck(t, []string{vmName})
 	t.Log(hostSetupOutput)

@@ -13,7 +13,7 @@ import (
 func TestQuicUserCreate(t *testing.T) {
 	vmIP := ensureVMRunning(t, QuicUserVM)
 	// must run `quic host setup` to init the db
-	cleanupQuicConfig(t)
+	rmConfigFiles(t)
 	runQuic(t, "host", "new", vmIP, "--devices", VMDevices)
 	runQuicHostSetupWithAck(t, []string{QuicUserVM})
 
@@ -80,7 +80,7 @@ func TestQuicUserCreateValidations(t *testing.T) {
 	})
 
 	t.Run("user create requires configured host", func(t *testing.T) {
-		cleanupQuicConfig(t)
+		rmConfigFiles(t)
 
 		output, _ := runQuic(t, "user", "create", "Test User")
 		require.Contains(t, output, "no hosts configured", "Expected no hosts message when no hosts configured")

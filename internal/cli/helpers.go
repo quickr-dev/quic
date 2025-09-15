@@ -20,7 +20,7 @@ func GetTemplate(templateFlag string) (*config.Template, error) {
 	// Use flag or user config default
 	templateName := templateFlag
 	if templateName == "" {
-		templateName = userCfg.DefaultTemplate
+		templateName = userCfg.SelectedTemplate
 	}
 
 	// If no template specified

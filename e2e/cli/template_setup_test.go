@@ -16,7 +16,7 @@ func TestQuicTemplateSetup(t *testing.T) {
 	vmIP := ensureFreshVM(t, QuicTemplateVM)
 
 	// Setup host
-	cleanupQuicConfig(t)
+	rmConfigFiles(t)
 	runQuic(t, "host", "new", vmIP, "--devices", VMDevices)
 	hostSetupOutput := runQuicHostSetupWithAck(t, []string{QuicTemplateVM})
 	t.Log(hostSetupOutput)

@@ -223,7 +223,7 @@ func filterHosts(cmd *cobra.Command, allHosts []config.QuicHost, hostsFlag strin
 	return targetHosts, nil
 }
 
-func retrieveAndStoreCertificateFingerprint(quicConfig *config.ProjectConfig, host config.QuicHost) error {
+func retrieveAndStoreCertificateFingerprint(projectConfig *config.ProjectConfig, host config.QuicHost) error {
 	client, err := ssh.NewClient(host.IP)
 	if err != nil {
 		return fmt.Errorf("failed to connect via SSH: %w", err)
@@ -241,16 +241,8 @@ func retrieveAndStoreCertificateFingerprint(quicConfig *config.ProjectConfig, ho
 		return fmt.Errorf("certificate fingerprint is empty")
 	}
 
-	// update the host in the configuration
-	for i := range quicConfig.Hosts {
-		if quicConfig.Hosts[i].IP == host.IP {
-			quicConfig.Hosts[i].CertificateFingerprint = fingerprint
-			break
-		}
-	}
-
-	// Save the updated configuration
-	if err := quicConfig.Save(); err != nil {
+	// update the host certificate fingerprint
+	if err := projectConfig.SetHostCertificateFingerprint(host.IP, fingerprint); err != nil {
 		return fmt.Errorf("failed to save updated configuration: %w", err)
 	}
 

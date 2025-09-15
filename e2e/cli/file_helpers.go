@@ -10,15 +10,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func cleanupQuicConfig(t *testing.T) {
+func rmConfigFiles(t *testing.T) {
 	os.Remove("quic.json")
+	require.NoFileExists(t, "quic.json")
 
-	// Also clean up user config to avoid stale IP addresses
 	homeDir, err := os.UserHomeDir()
-	if err == nil {
-		userConfigPath := homeDir + "/.config/quic/config.json"
-		os.Remove(userConfigPath)
-	}
+	require.NoError(t, err, err)
+
+	userConfigPath := homeDir + "/.config/quic/config.json"
+	os.Remove(userConfigPath)
+	require.NoFileExists(t, userConfigPath)
 }
 
 func requireFile(t *testing.T, path string) {

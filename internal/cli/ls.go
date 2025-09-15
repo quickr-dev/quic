@@ -20,14 +20,14 @@ var lsCmd = &cobra.Command{
 }
 
 func executeList(cmd *cobra.Command) error {
-	cfg, err := config.LoadUserConfig()
+	userCfg, err := config.LoadUserConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
 	templateName, _ := cmd.Flags().GetString("template")
 	if templateName == "" {
-		templateName = cfg.DefaultTemplate
+		templateName = userCfg.SelectedTemplate
 	}
 
 	return executeWithClient(func(client pb.QuicServiceClient, ctx context.Context) error {

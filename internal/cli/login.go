@@ -10,7 +10,7 @@ import (
 
 var loginCmd = &cobra.Command{
 	Use:   "login",
-	Short: "Required to execute (most) commands",
+	Short: "Log in a user",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		token, _ := cmd.Flags().GetString("token")
 		if token == "" {
@@ -22,9 +22,7 @@ var loginCmd = &cobra.Command{
 			return fmt.Errorf("loading config: %w", err)
 		}
 
-		cfg.AuthToken = token
-
-		if err := cfg.Save(); err != nil {
+		if err := cfg.SetAuthToken(token); err != nil {
 			return fmt.Errorf("saving config: %w", err)
 		}
 

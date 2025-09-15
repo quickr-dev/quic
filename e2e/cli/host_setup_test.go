@@ -11,7 +11,7 @@ func TestQuicHostSetup(t *testing.T) {
 	quicHost2IP := ensureFreshVM(t, QuicHost2VM)
 
 	t.Run("setup with single host", func(t *testing.T) {
-		cleanupQuicConfig(t)
+		rmConfigFiles(t)
 		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices)
 		require.NoError(t, err, output)
 
@@ -25,7 +25,7 @@ func TestQuicHostSetup(t *testing.T) {
 	})
 
 	t.Run("setup abort", func(t *testing.T) {
-		cleanupQuicConfig(t)
+		rmConfigFiles(t)
 		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices)
 		require.NoError(t, err, output)
 
@@ -35,7 +35,7 @@ func TestQuicHostSetup(t *testing.T) {
 	})
 
 	t.Run("setup with specific host alias", func(t *testing.T) {
-		cleanupQuicConfig(t)
+		rmConfigFiles(t)
 		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices, "--alias", "test-host")
 		require.NoError(t, err, output)
 
@@ -45,7 +45,7 @@ func TestQuicHostSetup(t *testing.T) {
 	})
 
 	t.Run("setup with specific host ip", func(t *testing.T) {
-		cleanupQuicConfig(t)
+		rmConfigFiles(t)
 		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices)
 		require.NoError(t, err, output)
 
@@ -55,7 +55,7 @@ func TestQuicHostSetup(t *testing.T) {
 	})
 
 	t.Run("setup with invalid host", func(t *testing.T) {
-		cleanupQuicConfig(t)
+		rmConfigFiles(t)
 		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices)
 		require.NoError(t, err, output)
 
@@ -68,7 +68,7 @@ func TestQuicHostSetup(t *testing.T) {
 	})
 
 	t.Run("setup no hosts configured", func(t *testing.T) {
-		cleanupQuicConfig(t)
+		rmConfigFiles(t)
 
 		output, err := runQuic(t, "host", "setup")
 		require.Error(t, err, "Setup should fail with no hosts configured")
@@ -76,7 +76,7 @@ func TestQuicHostSetup(t *testing.T) {
 	})
 
 	t.Run("setup with multiple hosts configured requires --hosts", func(t *testing.T) {
-		cleanupQuicConfig(t)
+		rmConfigFiles(t)
 
 		// Add two hosts
 		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices, "--alias", "host1")
@@ -91,7 +91,7 @@ func TestQuicHostSetup(t *testing.T) {
 	})
 
 	t.Run("sets up multiple hosts with --hosts all", func(t *testing.T) {
-		cleanupQuicConfig(t)
+		rmConfigFiles(t)
 
 		// Add two hosts
 		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices, "--alias", "host1")
@@ -109,7 +109,7 @@ func TestQuicHostSetup(t *testing.T) {
 	})
 
 	t.Run("duplicate alias validation", func(t *testing.T) {
-		cleanupQuicConfig(t)
+		rmConfigFiles(t)
 
 		output, err := runQuic(t, "host", "new", quicHostIP, "--devices", VMDevices, "--alias", "samealias")
 		require.NoError(t, err, output)

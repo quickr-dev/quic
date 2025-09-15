@@ -15,7 +15,7 @@ func TestQuicTemplateNew(t *testing.T) {
 	})
 
 	t.Run("successful template addition with flags", func(t *testing.T) {
-		cleanupQuicConfig(t)
+		rmConfigFiles(t)
 
 		output, err := runQuic(t, "template", "new", "test-template", "--pg-version", "16", "--cluster-name", "test-cluster", "--database", "test_db")
 
@@ -31,7 +31,7 @@ func TestQuicTemplateNew(t *testing.T) {
 	})
 
 	t.Run("duplicate template name should fail", func(t *testing.T) {
-		cleanupQuicConfig(t)
+		rmConfigFiles(t)
 
 		// Add first template
 		output, err := runQuic(t, "template", "new", "duplicate-template", "--cluster-name", "cluster1", "--database", "db1")
