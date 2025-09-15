@@ -120,10 +120,13 @@ func runHostNew(cmd *cobra.Command, args []string) error {
 func printDeviceTable(devices []ssh.BlockDevice) {
 	fmt.Printf("  %-20s %-10s %-10s %-15s\n", "NAME", "SIZE", "USED", "STATUS")
 	for _, device := range devices {
-		size := formatSize(device.Size)
+		size := ""
+		if device.Size.Value != nil {
+			size = formatSize(*device.Size.Value)
+		}
 		used := ""
-		if device.FSSize != nil {
-			used = formatSize(*device.FSSize)
+		if device.FSSize.Value != nil {
+			used = formatSize(*device.FSSize.Value)
 		}
 
 		status := string(device.Status)

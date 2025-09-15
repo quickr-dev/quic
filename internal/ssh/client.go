@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -17,10 +18,43 @@ type Client struct {
 	sshArgs  []string
 }
 
+// FlexibleInt64 handles JSON fields that can be either int64 or string
+type FlexibleInt64 struct {
+	Value *int64
+}
+
+func (f *FlexibleInt64) UnmarshalJSON(data []byte) error {
+	// Handle null values
+	if string(data) == "null" {
+		f.Value = nil
+		return nil
+	}
+
+	// Try to unmarshal as int64 first
+	var intVal int64
+	if err := json.Unmarshal(data, &intVal); err == nil {
+		f.Value = &intVal
+		return nil
+	}
+
+	// Try to unmarshal as string and convert
+	var strVal string
+	if err := json.Unmarshal(data, &strVal); err != nil {
+		return err
+	}
+
+	intVal, err := strconv.ParseInt(strVal, 10, 64)
+	if err != nil {
+		return err
+	}
+	f.Value = &intVal
+	return nil
+}
+
 type BlockDevice struct {
 	Name        string        `json:"name"`
-	Size        int64         `json:"size"`
-	FSSize      *int64        `json:"fssize"`
+	Size        FlexibleInt64 `json:"size"`
+	FSSize      FlexibleInt64 `json:"fssize"`
 	Mountpoints []string      `json:"mountpoints"`
 	Children    []BlockDevice `json:"children"`
 	Status      DeviceStatus
@@ -158,14 +192,19 @@ func (c *Client) ListBlockDevices() ([]BlockDevice, error) {
 	for _, device := range lsblk.Blockdevices {
 		device = c.analyzeDevice(device)
 		devices = append(devices, device)
-
-		// Add child devices (partitions) if they exist
-		devices = append(devices, c.processChildDevices(device)...)
 	}
 
 	// Sort devices by size descending (largest first)
 	sort.Slice(devices, func(i, j int) bool {
-		return devices[i].Size > devices[j].Size
+		sizeI := int64(0)
+		if devices[i].Size.Value != nil {
+			sizeI = *devices[i].Size.Value
+		}
+		sizeJ := int64(0)
+		if devices[j].Size.Value != nil {
+			sizeJ = *devices[j].Size.Value
+		}
+		return sizeI > sizeJ
 	})
 
 	return devices, nil
@@ -201,12 +240,6 @@ func (c *Client) analyzeDevice(device BlockDevice) BlockDevice {
 
 	device.Status = Available
 	return device
-}
-
-func (c *Client) processChildDevices(parent BlockDevice) []BlockDevice {
-	// This would need to be implemented if we want to show partitions
-	// For now, we'll keep it simple and only show top-level devices
-	return nil
 }
 
 func (c *Client) isSystemDevice(name string) bool {

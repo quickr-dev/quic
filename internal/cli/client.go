@@ -19,7 +19,6 @@ import (
 
 const DefaultTimeout = 60 * time.Second
 
-
 func executeWithClient(fn func(pb.QuicServiceClient, context.Context) error) error {
 	cfg, err := config.LoadUserConfig()
 	if err != nil {

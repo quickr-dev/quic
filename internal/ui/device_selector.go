@@ -104,10 +104,13 @@ func (m *DeviceSelector) View() string {
 		}
 
 		name := device.Name
-		size := formatSize(device.Size)
+		size := ""
+		if device.Size.Value != nil {
+			size = formatSize(*device.Size.Value)
+		}
 		used := ""
-		if device.FSSize != nil {
-			used = formatSize(*device.FSSize)
+		if device.FSSize.Value != nil {
+			used = formatSize(*device.FSSize.Value)
 		}
 
 		status := string(device.Status)
