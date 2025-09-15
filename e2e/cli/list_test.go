@@ -11,7 +11,7 @@ import (
 
 func TestQuicList(t *testing.T) {
 	checkoutOutput, templateName, branchName, err := setupQuicCheckout(t, QuicListVM)
-	require.NoError(t, err, "checkout setup should succeed")
+	require.NoError(t, err, err)
 	require.Contains(t, checkoutOutput, "postgresql://admin", "checkout should return connection string")
 
 	t.Run("ListAllBranches", func(t *testing.T) {

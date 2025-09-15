@@ -144,7 +144,7 @@ func setupQuicCheckout(t *testing.T, vmName string) (checkoutOutput string, temp
 	t.Log("Running quic template setup...")
 	templateSetupOutput, err := runQuic(t, "template", "setup")
 	if err != nil {
-		return "", "", "", fmt.Errorf("quic template setup failed: %w", err)
+		return "", "", "", fmt.Errorf("quic template setup failed: %s", templateSetupOutput)
 	}
 	t.Log(templateSetupOutput)
 	t.Log("✓ Finished quic template setup")
