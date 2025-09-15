@@ -40,8 +40,8 @@ type lsblkOutput struct {
 }
 
 func NewClient(host string) (*Client, error) {
-	// Try connecting as different users (ubuntu first, then root)
-	users := []string{"ubuntu", "root"}
+	// Try connecting as different users
+	users := []string{"ec2-user", "ubuntu", "root"}
 
 	baseSSHArgs := []string{
 		"-o", "StrictHostKeyChecking=no",
