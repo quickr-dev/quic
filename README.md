@@ -25,14 +25,6 @@ quic host new <ip-address>
 quic host setup
 ```
 
-### Setup a template database
-For now, it just works for CrunchyBridge backups. Feel free to create an issue detailing your use case.
-
-```sh
-quic template new <template-name>
-quic template setup
-```
-
 ### Create a user for yourself
 ```sh
 quic user create "Your Name" # outputs an auth token
@@ -46,6 +38,14 @@ For now, you need to manually hand auth tokens to the respective team members.
 ```sh
 quic user create "Team Member"
 quic user create "CI"
+```
+
+### Setup a template database
+For now, it just works for CrunchyBridge backups. Feel free to create an issue detailing your use case.
+
+```sh
+quic template new <template-name>
+quic template setup
 ```
 
 ### Create branches
