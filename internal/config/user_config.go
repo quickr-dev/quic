@@ -102,5 +102,20 @@ func getConfigPath() (string, error) {
 }
 
 func createDefaultConfig() *UserConfig {
-	return &UserConfig{}
+	config := &UserConfig{}
+
+	projectConfig, err := LoadProjectConfig()
+	if err != nil {
+		return config
+	}
+
+	if len(projectConfig.Hosts) > 0 {
+		config.SelectedHost = projectConfig.Hosts[0].IP
+	}
+
+	if len(projectConfig.Templates) > 0 {
+		config.SelectedTemplate = projectConfig.Templates[0].Name
+	}
+
+	return config
 }
