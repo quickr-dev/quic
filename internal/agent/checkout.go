@@ -256,7 +256,7 @@ func updatePostgreSQLConf(confPath string) error {
 	config := string(data)
 
 	cloneSettings := map[string]string{
-		"max_connections":                 "5",
+		"max_connections":                 "50",
 		"wal_level":                       "minimal",
 		"max_wal_senders":                 "0",
 		"archive_mode":                    "off",
